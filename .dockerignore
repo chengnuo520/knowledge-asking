@@ -1,0 +1,9 @@
+# 忽略构建产物和 IDE 文件
+target/
+*.iml
+.idea/
+.vscode/
+*.log
+
+# 忽略敏感环境变量文件
+.env

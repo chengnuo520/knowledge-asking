@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识问答助手</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f5f6f8;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 240px;
+            background: #ffffff;
+            border-right: 1px solid #e5e6eb;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .avatar {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; font-size: 32px; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; margin: 0 auto;
+        }
+        .bot-name { text-align: center; font-size: 15px; font-weight: 600; color: #1d2129; }
+        .model-select-wrap { display: flex; flex-direction: column; gap: 6px; }
+        .model-select-wrap label { font-size: 12px; color: #86909c; }
+        .model-select-wrap select {
+            width: 100%; padding: 8px 10px; border: 1px solid #e5e6eb;
+            border-radius: 8px; font-size: 13px; color: #1d2129;
+            background: #f2f3f5; cursor: pointer; outline: none;
+            transition: border-color 0.2s; font-family: inherit;
+        }
+        .model-select-wrap select:hover { border-color: #c9cdd4; }
+        .model-select-wrap select:focus { border-color: #165dff; background: #fff; }
+        .new-chat-btn {
+            width: 100%; padding: 10px 16px; background: #f2f3f5; border: none;
+            border-radius: 8px; font-size: 14px; color: #4e5969; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .new-chat-btn:hover { background: #e5e6eb; }
+
+        .main { flex: 1; display: flex; flex-direction: column; height: 100vh; }
+        .chat-area {
+            flex: 1; overflow-y: auto; padding: 24px 32px;
+            display: flex; flex-direction: column; gap: 16px;
+        }
+        .message {
+            max-width: 75%; padding: 12px 16px; border-radius: 12px;
+            font-size: 14px; line-height: 1.6; word-break: break-word; white-space: pre-wrap;
+        }
+        .message.user {
+            align-self: flex-end; background: #165dff; color: #ffffff;
+            border-bottom-right-radius: 4px;
+        }
+        .message.bot {
+            align-self: flex-start; background: #ffffff; color: #1d2129;
+            border: 1px solid #e5e6eb; border-bottom-left-radius: 4px;
+        }
+        .message.error {
+            align-self: flex-start; background: #ffece8; color: #f53f3f;
+            border: 1px solid #ffccc7;
+        }
+        .message.user .msg-img {
+            max-width: 160px; max-height: 160px; border-radius: 6px;
+            margin-bottom: 8px; display: block;
+        }
+        .typing::after { content: '.'; animation: dots 1.4s steps(4, end) infinite; }
+        @keyframes dots {
+            0%, 20% { content: ''; } 40% { content: '.'; }
+            60% { content: '..'; } 80%, 100% { content: '...'; }
+        }
+
+        .input-area { padding: 16px 32px 24px; background: #ffffff; border-top: 1px solid #e5e6eb; }
+        .image-preview-bar {
+            max-width: 900px; margin: 0 auto 10px; display: none;
+        }
+        .image-preview-bar.show { display: flex; }
+        .image-preview-bar .preview-item { position: relative; margin-right: 8px; }
+        .image-preview-bar img {
+            width: 80px; height: 80px; object-fit: cover;
+            border-radius: 6px; border: 1px solid #e5e6eb;
+        }
+        .image-preview-bar .remove-img {
+            position: absolute; top: -6px; right: -6px;
+            width: 20px; height: 20px; background: #f53f3f; color: #fff;
+            border: none; border-radius: 50%; font-size: 12px; cursor: pointer;
+            line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center;
+        }
+        .input-row {
+            display: flex; gap: 8px; max-width: 900px; margin: 0 auto; align-items: flex-end;
+        }
+        .upload-btn {
+            width: 40px; height: 44px; background: #f2f3f5; border: none;
+            border-radius: 10px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; font-size: 20px;
+            transition: background 0.2s; flex-shrink: 0;
+        }
+        .upload-btn:hover { background: #e5e6eb; }
+        .upload-btn.active { background: #e6f0ff; color: #165dff; }
+        .input-row textarea {
+            flex: 1; padding: 12px 16px; border: 1px solid #e5e6eb;
+            border-radius: 10px; resize: none; font-size: 14px;
+            font-family: inherit; line-height: 1.5; outline: none;
+            transition: border-color 0.2s; min-height: 44px; max-height: 160px;
+        }
+        .input-row textarea:focus { border-color: #165dff; }
+        .send-btn {
+            width: 80px; padding: 0 20px; background: #165dff; border: none;
+            border-radius: 10px; color: #ffffff; font-size: 14px; font-weight: 500;
+            cursor: pointer; transition: background 0.2s, opacity 0.2s; flex-shrink: 0;
+        }
+        .send-btn:hover:not(:disabled) { background: #0e4bcc; }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #d9d9d9; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #bfbfbf; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="avatar">QA</div>
+        <div class="bot-name">知识问答助手</div>
+        <div class="model-select-wrap">
+            <label for="modelSelect">当前模型</label>
+            <select id="modelSelect"></select>
+        </div>
+        <button class="new-chat-btn" onclick="clearChat()">+ 新会话</button>
+    </aside>
+
+    <main class="main">
+        <div class="chat-area" id="chatArea">
+            <div class="message bot">你好，我是知识问答助手，有什么可以帮你的吗？</div>
+        </div>
+
+        <div class="input-area">
+            <div class="image-preview-bar" id="previewBar"></div>
+            <div class="input-row">
+                <button class="upload-btn" id="uploadBtn" onclick="document.getElementById('imageInput').click()" title="上传图片">📎</button>
+                <input type="file" id="imageInput" accept="image/*" style="display:none;">
+                <textarea id="inputBox" placeholder="请输入消息..." onkeydown="handleKeydown(event)" rows="1"></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">发送</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const chatArea = document.getElementById('chatArea');
+        const inputBox = document.getElementById('inputBox');
+        const sendBtn = document.getElementById('sendBtn');
+        const modelSelect = document.getElementById('modelSelect');
+        const imageInput = document.getElementById('imageInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const previewBar = document.getElementById('previewBar');
+        let currentModel = 'remote-deepseek';
+        let attachedImage = null; // {file, dataUrl}
+
+        async function loadModels() {
+            try {
+                const resp = await fetch('/api/models');
+                const models = await resp.json();
+                modelSelect.innerHTML = '';
+                models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.name;
+                    if (m.id === currentModel) opt.selected = true;
+                    modelSelect.appendChild(opt);
+                });
+            } catch (err) {
+                modelSelect.innerHTML = '<option value="remote-deepseek">加载失败</option>';
+            }
+        }
+        loadModels();
+
+        modelSelect.addEventListener('change', e => { currentModel = e.target.value; });
+
+        imageInput.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                attachedImage = { file, dataUrl: ev.target.result };
+                renderPreview();
+            };
+            reader.readAsDataURL(file);
+            imageInput.value = '';
+        });
+
+        function renderPreview() {
+            previewBar.innerHTML = '';
+            if (!attachedImage) {
+                previewBar.classList.remove('show');
+                uploadBtn.classList.remove('active');
+                return;
+            }
+            previewBar.classList.add('show');
+            uploadBtn.classList.add('active');
+            const div = document.createElement('div');
+            div.className = 'preview-item';
+            div.innerHTML = `<img src="${attachedImage.dataUrl}">
+                <button class="remove-img" onclick="attachedImage=null;renderPreview();" title="移除">×</button>`;
+            previewBar.appendChild(div);
+        }
+
+        function autoResize() {
+            inputBox.style.height = 'auto';
+            inputBox.style.height = Math.min(inputBox.scrollHeight, 160) + 'px';
+        }
+        inputBox.addEventListener('input', autoResize);
+
+        function handleKeydown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+        }
+
+        function scrollToBottom() { chatArea.scrollTop = chatArea.scrollHeight; }
+
+        function appendMessage(text, cls, imageUrl) {
+            const div = document.createElement('div');
+            div.className = 'message ' + cls;
+            if (imageUrl && cls === 'user') {
+                const img = document.createElement('img');
+                img.src = imageUrl; img.className = 'msg-img';
+                div.appendChild(img);
+            }
+            if (text) div.appendChild(document.createTextNode(text));
+            chatArea.appendChild(div);
+            scrollToBottom();
+            return div;
+        }
+
+        async function sendMessage() {
+            const text = inputBox.value.trim();
+            const hasImage = !!attachedImage;
+            if (!text && !hasImage) return;
+            if (sendBtn.disabled) return;
+
+            appendMessage(text, 'user', hasImage ? attachedImage.dataUrl : null);
+            const savedImage = attachedImage;
+            attachedImage = null;
+            renderPreview();
+            inputBox.value = '';
+            autoResize();
+
+            sendBtn.disabled = true;
+            const typingEl = appendMessage('思考中', 'bot typing');
+
+            let resp;
+            try {
+                if (hasImage) {
+                    const fd = new FormData();
+                    fd.append('image', savedImage.file);
+                    fd.append('message', text || '描述这张图片');
+                    fd.append('model', currentModel);
+                    resp = await fetch('/api/vision', { method: 'POST', body: fd });
+                } else {
+                    resp = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: text, model: currentModel })
+                    });
+                }
+                const data = await resp.json();
+                typingEl.remove();
+                if (data.error) {
+                    appendMessage(data.error, 'error');
+                } else {
+                    appendMessage(data.reply, 'bot');
+                }
+            } catch (err) {
+                typingEl.remove();
+                appendMessage('请求失败：' + err.message, 'error');
+            } finally {
+                sendBtn.disabled = false;
+                inputBox.focus();
+            }
+        }
+
+        function clearChat() {
+            chatArea.innerHTML = '';
+            appendMessage('你好，我是知识问答助手，有什么可以帮你的吗？', 'bot');
+        }
+    </script>
+</body>
+</html>

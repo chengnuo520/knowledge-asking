@@ -1,0 +1,11 @@
+services:
+  deepseek-chat:
+    build: .
+    image: deepseek-chat:latest
+    container_name: deepseek-chat
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
