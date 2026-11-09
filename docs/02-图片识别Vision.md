@@ -2,19 +2,27 @@
 
 ## 核心思路
 
-多模态 = **文本 + 图片（作为 Media）** 组装成 `UserMessage`，一起发给支持 vision 的模型。
+多模态 = **文本 + 图片（作为 DataBlock）** 组装成 `Msg`，一起发给支持 vision 的模型。
 
 ```
 用户上传图片 → MultipartFile
         │
         ▼
-UserMessage.builder()
-    .text("描述这张图是什么颜色")
-    .media(new Media(MimeType, ByteArrayResource))
+DataBlock.builder()
+    .source(Base64Source.builder()
+        .data(base64)
+        .mediaType("image/png")
+        .build())
     .build()
         │
         ▼
-模型 /v1/chat/completions 请求体:
+Msg.builder().role(MsgRole.USER).textContent("描述这张图是什么颜色").content(imageBlock).build()
+        │
+        ▼
+ReActAgent.call(msg).block().getTextContent()
+        │
+        ▼
+模型 /chat/completions 请求体:
 { content: [
     { type: "text", text: "..." },
     { type: "image_url", image_url: { url: "data:image/png;base64,..." } }
@@ -28,46 +36,61 @@ UserMessage.builder()
 public Map<String, String> vision(
         @RequestParam("image") MultipartFile file,
         @RequestParam(value = "message", defaultValue = "描述这张图片") String message,
-        @RequestParam(value = "model", defaultValue = "ollama-qwen3-vl") String modelId) {
+        @RequestParam(value = "model", defaultValue = "ollama-qwen3-vl") String modelId) throws IOException {
 
-    // 1. MimeType —— 用 Spring 的 MimeTypeUtils.parseMimeType, 别直接 new MimeType("image/png")
-    //    Spring 的 MimeType 构造函数不接受 "/" 分隔的完整字符串!
-    MimeType mimeType = MimeTypeUtils.parseMimeType(file.getContentType());
+    // 1. AgentScope 的 Base64Source 直接接收 Base64 字符串, 先自己编码
+    String base64 = Base64.getEncoder().encodeToString(file.getBytes());
 
-    // 2. Media —— Spring AI 用 Resource 接口包装字节
-    Media media = new Media(mimeType, new ByteArrayResource(file.getBytes()));
-
-    // 3. UserMessage.builder() 链式组装
-    UserMessage userMessage = UserMessage.builder()
-            .text(message)
-            .media(media)
+    // 2. DataBlock 包装图片来源 + MIME 类型
+    DataBlock imageBlock = DataBlock.builder()
+            .source(Base64Source.builder()
+                    .data(base64)
+                    .mediaType(file.getContentType())   // 如 image/png
+                    .build())
             .build();
 
-    // 4. ChatModel.call(message) —— 一行搞定
-    String reply = factory.getOrCreate(modelId).call(userMessage);
-    return Map.of("reply", reply == null ? "" : reply);
+    // 3. Msg 同时携带文本和图片 DataBlock
+    Msg msg = Msg.builder()
+            .role(MsgRole.USER)
+            .textContent(message)
+            .content(imageBlock)
+            .build();
+
+    // 4. 模型交给 ReActAgent, 同步取回复
+    OpenAIChatModel model = factory.getOrCreate(modelId);
+    try (ReActAgent agent = ReActAgent.builder().name("assistant").model(model).build()) {
+        String reply = agent.call(msg).block().getTextContent();
+        return Map.of("reply", reply == null ? "" : reply);
+    }
 }
 ```
 
-**Spring AI 多模态关键 3 个类**：
+**AgentScope 多模态关键 3 个类**：
 
-| 类 | 包 | 作用 |
-|---|---|---|
-| `UserMessage.builder().text().media().build()` | `org.springframework.ai.chat.messages` | 组装消息 |
-| `Media(MimeType, Resource)` | `org.springframework.ai.content` | 图片（或其他媒体） |
-| `MimeTypeUtils.parseMimeType(String)` | `org.springframework.util` | 安全解析 `"image/png"` |
+| 类 | 作用 |
+|---|---|
+| `Msg.builder().role(MsgRole.USER).textContent()/content()` | 组装消息，文本与图片块一起提交 |
+| `DataBlock.builder().source(...).build()` | 图片等非文本数据块 |
+| `Base64Source.builder().data().mediaType().build()` | Base64 数据来源 + MIME 类型 |
 
-**和 LangChain4j 对比**：
+**和迁移前的 Spring AI 写法对比**：
 ```java
-// LangChain4j: 手动 Base64 + 两个 Content 对象
-String b64 = Base64.getEncoder().encodeToString(file.getBytes());
-UserMessage.from(TextContent.from(text), ImageContent.from(b64, mime));
+// 迁移前 Spring AI: Resource 传原始字节, Media 内部自己编码
+UserMessage.builder()
+    .text(text)
+    .media(new Media(MimeTypeUtils.parseMimeType(contentType), new ByteArrayResource(file.getBytes())))
+    .build();
 
-// Spring AI: 不用自己转 Base64, Resource 传原始字节就行
-UserMessage.builder().text(text).media(new Media(mime, new ByteArrayResource(file.getBytes()))).build();
+// 现在 AgentScope: 先 Base64 编码, 再包成 DataBlock
+DataBlock.builder()
+    .source(Base64Source.builder()
+        .data(Base64.getEncoder().encodeToString(file.getBytes()))
+        .mediaType(contentType)
+        .build())
+    .build();
 ```
 
-Spring AI 的 `Media` 内部自己处理 Base64 编码，我们省了一步。
+AgentScope 不再替我们做 Base64 编码，需要显式交给 `Base64Source`。
 
 ## 前端：有图片自动分流
 
@@ -115,36 +138,18 @@ imageInput.addEventListener('change', e => {
 
 ## 踩过的坑
 
-**坑 1：MimeType 构造函数报 `Invalid token character '/'`**
+**坑 1：图片要先转 Base64**
 
-```
-// ❌ 不行 —— Spring 的 MimeType 构造函数不接受 "/"
-new MimeType("image/png")
+`Base64Source` 接收的是 Base64 字符串，不是原始字节。流程固定为：`file.getBytes()` → `Base64.getEncoder().encodeToString()` → `Base64Source.data(...)`。
 
-// ✅ 可以 —— parseMimeType 能正确处理
-MimeTypeUtils.parseMimeType("image/png")
+**坑 2：mediaType 传 MIME 字符串**
 
-// ✅ 也可以 —— 分开传 type 和 subtype
-new MimeType("image", "png")
-```
+`Base64Source.mediaType(...)` 接收 `"image/png"` 这类字符串，直接用 `file.getContentType()` 即可，不需要再套 Spring 的 `MimeType` / `MimeTypeUtils`。
 
-**坑 2：MediaType vs MimeType**
+**坑 3：文本和图片都放进同一个 Msg**
 
-注意这俩不是一个东西：
-- `org.springframework.http.MediaType` —— HTTP Content-Type 用的，Spring Boot 自动导入
-- `org.springframework.util.MimeType` —— 底层类型，Spring AI 的 Media 构造函数要这个
+文本用 `textContent(...)`，图片用 `content(imageBlock)`。只传 DataBlock 而漏掉问题文本，模型不知道要回答什么。
 
-Spring AI 很多 API 用的是 `MimeType`，别搞混了 import。
+**坑 4：base-url 写完整 OpenAI 兼容端点**
 
-**坑 3：Resource 接口**
-
-Spring AI 的 `Media` 需要一个 `Resource` 实现。常用的几个：
-- `new ByteArrayResource(bytes)` —— 内存中的字节
-- `new FileSystemResource(new File("a.jpg"))` —— 本地文件
-- `new UrlResource("https://...")` —— 网络图片
-
-我们用 `ByteArrayResource(file.getBytes())` 最简单。
-
-**坑 4：base-url 不带 `/v1`**
-
-同 01 文档。Vision 走的也是同一个 `OpenAiApi`，base-url 规则一样。
+同 01 文档。Vision 走的也是同一个 `OpenAIChatModel`，`baseUrl` 要带 `/v1`（如 `http://localhost:11434/v1`），AgentScope 不会自动拼接。

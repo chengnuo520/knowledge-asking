@@ -1,5 +1,7 @@
 # LangChain4j vs Spring AI — 选型对比
 
+> 说明：本文记录项目从 LangChain4j 迁到 Spring AI 时的选型思考。此后项目已完成向 **AgentScope Java 2.0.2** 的迁移，模型接入与问答调用以 AgentScope 写法为准（`OpenAIChatModel` + `ReActAgent`），下文相关代码示例已同步更新。
+
 ## 设计哲学的根本分歧
 
 ```
@@ -45,23 +47,18 @@ OpenAiChatModel.builder()
     .build();
 ```
 
-**Spring AI** — 三层结构，先 API 再 Options 再 Model：
+**AgentScope Java** — 同样是单层 builder，连接信息和模型名一次给全：
 
 ```java
-OpenAiApi api = OpenAiApi.builder()
-    .baseUrl("https://api.deepseek.com")   // 注意: 不带 /v1!
+OpenAIChatModel model = OpenAIChatModel.builder()
     .apiKey("sk-xxx")
+    .baseUrl("https://api.deepseek.com/v1")   // 完整 OpenAI 兼容端点
+    .modelName("deepseek-flash")
+    .stream(false)
     .build();
-
-OpenAiChatOptions options = OpenAiChatOptions.builder()
-    .model("deepseek-flash")
-    .temperature(0.7)
-    .build();
-
-OpenAiChatModel.builder().openAiApi(api).defaultOptions(options).build();
 ```
 
-Spring AI 多一层嵌套，但把**连接层（OpenAiApi）和参数层（Options）分开了**，结构更清晰。
+AgentScope 不再有 Spring AI 的 `OpenAiApi` / `OpenAiChatOptions` 分层，`OpenAIChatModel` 只负责模型调用；要执行问答还要再包一层 `ReActAgent`。温度等生成参数在 Agent 调用时传入。
 
 ## 调用 API
 
@@ -84,25 +81,26 @@ UserMessage.from(
 );
 ```
 
-**Spring AI**：
+**AgentScope Java**：
 
 ```java
-// 简单聊天
-String reply = model.call("你好");    // ← 一行!
+// 简单聊天 — 先建 ReActAgent，再把用户消息包成 Msg
+try (ReActAgent agent = ReActAgent.builder().name("assistant").model(model).build()) {
+    Msg msg = Msg.builder().role(MsgRole.USER).textContent("你好").build();
+    String reply = agent.call(msg).block().getTextContent();
+}
 
-// 多消息
-String reply = model.call("你是翻译", text);
-
-// Vision — 不用手动转 Base64, Resource 传原始字节
-UserMessage.builder()
-    .text("描述这张图")
-    .media(new Media(MimeTypeUtils.parseMimeType(contentType), new ByteArrayResource(file.getBytes())))
+// Vision — 图片转 Base64 后装进 DataBlock
+DataBlock imageBlock = DataBlock.builder()
+    .source(Base64Source.builder()
+        .data(Base64.getEncoder().encodeToString(file.getBytes()))
+        .mediaType(contentType)
+        .build())
     .build();
+Msg msg = Msg.builder().role(MsgRole.USER).textContent("描述这张图").content(imageBlock).build();
 ```
 
-**Spring AI `model.call(String)` 一行搞定简单聊天**，LangChain4j 至少两行（`ChatRequest.builder().messages(UserMessage.from(text)).build(); model.chat(req)`）。
-
-Vision 方面：LangChain4j 要手动 `Base64.getEncoder().encodeToString()`，Spring AI 的 `Media` 内部自己处理。
+**AgentScope 的一次问答要经过 `Msg` + `ReActAgent`**，比 Spring AI 的 `model.call(String)` 多几行，但换来 ReAct 推理循环、统一消息模型和后续工具调用能力。Vision 也不再自动编码，需要显式 `Base64Source`。
 
 ## 自动配置 vs 手动装配
 
@@ -142,6 +140,8 @@ spring:
 
 然后自己在 ChatModelFactory 里手动创建实例。**绕了一圈，Spring AI 又变回了 LangChain4j 的使用方式**——API 风格更现代，但自由度靠自己 exclude 出来。
 
+> 迁移到 AgentScope 后这一节不再是现状：AgentScope 不参与 Spring Boot 自动装配，`OpenAIChatModel` 全部在 `ChatModelFactory` 里显式创建，不需要 exclude 任何自动配置类。
+
 ## base-url 规则不同
 
 | | LangChain4j | Spring AI |
@@ -152,7 +152,9 @@ spring:
 
 **迁移时最容易忘这一条**。LangChain4j 时代你写的 `/v1` 到 Spring AI 会变成 `/v1/v1/chat/completions` → 404。
 
-## 完整对比表
+迁移到 AgentScope 后规则又变了一次：`OpenAIChatModel` 的 `baseUrl` 要指向完整的 OpenAI 兼容端点（通常带 `/v1`），框架不会自动拼接。
+
+## 完整对比表（LangChain4j vs Spring AI，历史选型）
 
 | 维度 | LangChain4j | Spring AI | 说明 |
 |---|---|---|---|
@@ -171,44 +173,24 @@ spring:
 | 社区成熟度 | 53k stars，生产验证多 | 1.0 GA 稳定，快速增长 | 平手 |
 | 版本号 | 0.x 仍在迭代 | 1.0+ SemVer 保证 | Spring AI 赢 |
 
-## 项目为什么最终选了 Spring AI
+## 项目为什么最终选了 AgentScope Java
 
-原本选 LangChain4j 是看重"灵活 + 不劫持容器"。但迁移过程中发现：
+早期选型在 LangChain4j 和 Spring AI 之间反复比较，最终项目落到 AgentScope Java 2.0.2，原因有三点：
 
-### 1. 灵活度实际上差不多
+### 1. 多模型接入依然是一个 builder
 
-**exclude 掉 Spring AI 自动配置后**，我们在 ChatModelFactory 里手动创建 Bean——跟 LangChain4j 的使用方式完全一样。Spring AI 的"管家"只是默认抢跑，关掉之后它也是个"工具库"。
+`agentscope-extensions-model-openai` 的 `OpenAIChatModel` 用一层 builder 收下 `apiKey` / `baseUrl` / `modelName`，工厂模式照旧，配置驱动切换多模型的写法不用推翻。
 
-### 2. 调用 API 更简洁
+### 2. 问答统一走 ReActAgent
 
-```java
-// LangChain4j: 3 行
-ChatRequest req = ChatRequest.builder().messages(UserMessage.from(text)).build();
-String reply = model.chat(req).aiMessage().text();
+模型只负责一次生成，`ReActAgent` 负责推理循环和后续的工具调用。比起直接调用 `ChatModel`，它给项目留出了扩展空间：后续接 MCP 工具、长期记忆、知识库检索都可以复用同一套 Agent 调用方式。
 
-// Spring AI: 1 行
-String reply = model.call(text);
-```
+### 3. 后续能力有原生支持
 
-### 3. Spring 生态无缝集成
+AgentScope 自带 `Knowledge`、`LongTermMemory` 和 MCP 支持，正好对应项目后续的 RAG 知识库、多轮长期记忆和工具接入计划，不需要再换框架或自己拼装。
 
-团队熟悉 Spring Boot。`ChatModel` 接口跟 `RestTemplate`、`WebClient` 风格一致，后续加 `@Retryable`、`@Async`、`@Cacheable` 注解都是原生支持。
-
-### 4. 未来可直接用 VectorStore
-
-如果项目以后要做 RAG，Spring AI 的 `PgVectorStore` / `RedisVectorStore` starter 一把梭——引依赖、配数据源、注入 `VectorStore` 就能用，LangChain4j 要自己拼。
-
-### 5. 1.0 GA 后 API 稳定
-
-SemVer 保证，不用担心小版本升了 breaking change。LangChain4j 还在 0.x 迭代。
+Spring Boot 依然是 Web 层和依赖注入的基础，AgentScope 只作为 AI 框架使用，不接管容器。
 
 ## 一句话总结
 
-**LangChain4j 给你完全的自由，但 API 风格比较"原始"；Spring AI 默认抢跑、要 exclude 才能自由，但一旦关掉自动配置，它的 API 更现代、跟 Spring 生态无缝。**
-
-对于**我们这种多模型切换 + 需要工厂模式 + 想保持代码简洁**的场景：
-- 灵活度上，exclude 之后 Spring AI 和 LangChain4j 没区别
-- API 风格上，Spring AI 更简洁（`model.call(text)` 一行 vs 三行）
-- 生态上，Spring AI 未来可接 VectorStore，LangChain4j 要自己拼
-
-**迁移成本 = 改工厂 + Controller 里的 API 调用 + yml 加 exclude + base-url 去掉 `/v1`（大约半天）**。换来的是更好的 API 风格和未来生态扩展性。
+**选型的重点不只是谁的调用 API 更短，而是谁能承接后续的 Agent 能力。AgentScope 用一层 `OpenAIChatModel` builder 保住多模型工厂的简洁，再用 `ReActAgent` 把工具、记忆、知识库这些能力串起来。**
