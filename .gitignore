@@ -30,3 +30,9 @@ Desktop.ini
 # Logs
 *.log
 logs/
+
+# 本地工作区（AI 记忆、工具链依赖）
+.workbuddy/
+
+# 文档生成流水线产物（docx/html 中间件）
+output/
