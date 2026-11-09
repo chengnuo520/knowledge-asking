@@ -67,6 +67,32 @@
             align-self: flex-start; background: #ffece8; color: #f53f3f;
             border: 1px solid #ffccc7;
         }
+        /* ===== 新增功能②：Markdown 渲染样式（只作用于 bot 气泡） ===== */
+        .message.bot { white-space: normal; }
+        .message.bot .md-p { margin: 0 0 8px; }
+        .message.bot .md-p:last-child { margin-bottom: 0; }
+        .message.bot .md-h { margin: 10px 0 6px; font-size: 15px; font-weight: 600; line-height: 1.5; }
+        .message.bot .md-h:first-child { margin-top: 0; }
+        .message.bot .md-ul, .message.bot .md-ol { margin: 6px 0 8px; padding-left: 22px; }
+        .message.bot .md-ul li, .message.bot .md-ol li { margin: 2px 0; }
+        .message.bot .md-quote {
+            margin: 8px 0; padding: 6px 10px; color: #4e5969;
+            border-left: 3px solid #d9d9d9; background: #fafbfc;
+        }
+        .message.bot .md-code {
+            margin: 8px 0; padding: 10px 12px; background: #f7f8fa;
+            border: 1px solid #e5e6eb; border-radius: 8px;
+            overflow-x: auto; white-space: pre;
+        }
+        .message.bot .md-code code {
+            font-family: ui-monospace, Consolas, "Courier New", monospace;
+            font-size: 12.5px; line-height: 1.6; background: none; padding: 0;
+        }
+        .message.bot .md-inline {
+            padding: 1px 5px; background: #f2f3f5; border-radius: 4px;
+            font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: 12.5px;
+        }
+        .message.bot strong { font-weight: 600; }
         .message.user .msg-img {
             max-width: 160px; max-height: 160px; border-radius: 6px;
             margin-bottom: 8px; display: block;
@@ -222,6 +248,75 @@
 
         function scrollToBottom() { chatArea.scrollTop = chatArea.scrollHeight; }
 
+        /* ===== 新增功能②：轻量 Markdown 渲染 =====
+           安全原则：先把整段文本的 HTML 特殊字符全部转义，再只对白名单语法做替换。
+           因此模型输出 <img src=x onerror=alert(1)> 只会显示成文本，不会被执行。 */
+        function escapeHtml(s) {
+            return s.replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[c]);
+        }
+
+        function inlineFormat(s) {
+            return s
+                .replace(/`([^`]+)`/g, '<code class="md-inline">$1</code>')      // 行内代码
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')              // **粗体**
+                .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');             // *斜体*
+        }
+
+        function renderMarkdown(src) {
+            if (!src) return '';
+            const escaped = escapeHtml(src);
+
+            // 1) 先把 ``` 代码块整体抽走，避免里面的 * 或 ` 被行内规则误伤
+            const codes = [];
+            const text = escaped.replace(/```[a-zA-Z0-9+#-]*\n?([\s\S]*?)```/g, (m, body) => {
+                codes.push(body.replace(/\n$/, ''));
+                return '@@CODE' + (codes.length - 1) + '@@';
+            });
+
+            const out = [];
+            let listTag = null;
+            const closeList = () => { if (listTag) { out.push('</' + listTag + '>'); listTag = null; } };
+
+            for (const raw of text.split('\n')) {
+                const line = raw.trim();
+                if (!line) { closeList(); continue; }
+
+                let m;
+                if ((m = /^@@CODE(\d+)@@$/.exec(line))) {          // 代码块占位符：整块输出
+                    closeList(); out.push(line); continue;
+                }
+                if ((m = /^(#{1,4})\s+(.+)$/.exec(line))) {         // 标题（最多映射到 h5）
+                    closeList();
+                    const level = Math.min(m[1].length + 2, 5);
+                    out.push('<h' + level + ' class="md-h">' + inlineFormat(m[2]) + '</h' + level + '>');
+                    continue;
+                }
+                if ((m = /^[-*+]\s+(.+)$/.exec(line))) {            // 无序列表
+                    if (listTag !== 'ul') { closeList(); out.push('<ul class="md-ul">'); listTag = 'ul'; }
+                    out.push('<li>' + inlineFormat(m[1]) + '</li>');
+                    continue;
+                }
+                if ((m = /^\d+[.)]\s+(.+)$/.exec(line))) {          // 有序列表
+                    if (listTag !== 'ol') { closeList(); out.push('<ol class="md-ol">'); listTag = 'ol'; }
+                    out.push('<li>' + inlineFormat(m[1]) + '</li>');
+                    continue;
+                }
+                if ((m = /^&gt;\s?(.*)$/.exec(line))) {             // 引用（> 已被转义成 &gt;）
+                    closeList();
+                    out.push('<blockquote class="md-quote">' + inlineFormat(m[1]) + '</blockquote>');
+                    continue;
+                }
+                closeList();
+                out.push('<p class="md-p">' + inlineFormat(line) + '</p>');
+            }
+            closeList();
+
+            return out.join('').replace(/@@CODE(\d+)@@/g,
+                (m, i) => '<pre class="md-code"><code>' + codes[+i] + '</code></pre>');
+        }
+
         function appendMessage(text, cls, imageUrl) {
             const div = document.createElement('div');
             div.className = 'message ' + cls;
@@ -230,7 +325,13 @@
                 img.src = imageUrl; img.className = 'msg-img';
                 div.appendChild(img);
             }
-            if (text) div.appendChild(document.createTextNode(text));
+            if (text) {
+                if (cls.indexOf('bot') >= 0) {
+                    div.innerHTML = renderMarkdown(text);       // 只有机器人回复走渲染
+                } else {
+                    div.appendChild(document.createTextNode(text));   // 用户输入永远当纯文本
+                }
+            }
             chatArea.appendChild(div);
             scrollToBottom();
             return div;
