@@ -1,17 +1,19 @@
 package com.example.chat;
 
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.content.Media;
+import io.agentscope.core.ReActAgent;
+import io.agentscope.core.message.Base64Source;
+import io.agentscope.core.message.DataBlock;
+import io.agentscope.core.message.Msg;
+import io.agentscope.core.message.MsgRole;
+import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.model.Model;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
-import org.springframework.util.MimeType;
-import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +48,7 @@ public class ChatController {
             return result;
         }
 
-        ChatModel model;
+        Model model;
         try {
             model = factory.getOrCreate(modelId);
         } catch (IllegalArgumentException e) {
@@ -54,10 +56,13 @@ public class ChatController {
             return result;
         }
 
-        try {
-            // Spring AI ChatModel.call(String) — 一行搞定
-            String reply = model.call(message);
-            result.put("reply", reply == null ? "" : reply);
+        try (ReActAgent agent = ReActAgent.builder()
+                .name("assistant")
+                .model(model)
+                .build()) {
+            Msg msg = Msg.builder().role(MsgRole.USER).textContent(message).build();
+            Msg reply = agent.call(msg).block();
+            result.put("reply", reply == null || reply.getTextContent() == null ? "" : reply.getTextContent());
         } catch (Exception e) {
             result.put("error", "模型调用失败: " + e.getMessage());
         }
@@ -83,7 +88,7 @@ public class ChatController {
             return result;
         }
 
-        ChatModel model;
+        Model model;
         try {
             model = factory.getOrCreate(modelId);
         } catch (IllegalArgumentException e) {
@@ -91,19 +96,23 @@ public class ChatController {
             return result;
         }
 
-        try {
-            // Spring AI 多模态: UserMessage.builder().text().media().build()
-            // 注意: MimeType.valueOf() 比 new MimeType() 更宽容, 能处理 "image/png" 格式
-            MimeType mimeType = MimeTypeUtils.parseMimeType(contentType);
-            Media media = new Media(mimeType, new ByteArrayResource(file.getBytes()));
-
-            UserMessage userMessage = UserMessage.builder()
-                    .text(message)
-                    .media(media)
+        try (ReActAgent agent = ReActAgent.builder()
+                .name("assistant")
+                .model(model)
+                .build()) {
+            // 多模态消息: 文本块 + base64 图片数据块
+            String base64 = Base64.getEncoder().encodeToString(file.getBytes());
+            Msg msg = Msg.builder()
+                    .role(MsgRole.USER)
+                    .content(List.of(
+                            TextBlock.builder().text(message).build(),
+                            DataBlock.builder()
+                                    .source(Base64Source.builder().data(base64).mediaType(contentType).build())
+                                    .build()))
                     .build();
 
-            String reply = model.call(userMessage);
-            result.put("reply", reply == null ? "" : reply);
+            Msg reply = agent.call(msg).block();
+            result.put("reply", reply == null || reply.getTextContent() == null ? "" : reply.getTextContent());
         } catch (IOException e) {
             result.put("error", "图片读取失败: " + e.getMessage());
         } catch (Exception e) {

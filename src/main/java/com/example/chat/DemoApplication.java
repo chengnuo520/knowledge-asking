@@ -3,8 +3,7 @@ package com.example.chat;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-// Spring AI 自动配置在 application.yml 里统一 exclude 掉了
-// 我们自己在 ChatModelFactory 里手动创建模型实例
+// 模型实例由 ChatModelFactory 手动创建（AgentScope OpenAIChatModel），不走自动装配
 @SpringBootApplication
 public class DemoApplication {
 

@@ -16,39 +16,28 @@
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <name>agentscope-chat</name>
-    <description>基于 Spring AI 的基础知识问答 Web 应用</description>
+    <description>基于 AgentScope Java 的基础知识问答 Web 应用</description>
 
     <properties>
         <java.version>17</java.version>
-        <spring-ai.version>1.0.3</spring-ai.version>
+        <agentscope.version>2.0.2</agentscope.version>
     </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.ai</groupId>
-                <artifactId>spring-ai-bom</artifactId>
-                <version>${spring-ai.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        <!-- Ollama 模型支持 -->
         <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-ollama</artifactId>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-core</artifactId>
+            <version>${agentscope.version}</version>
         </dependency>
-        <!-- OpenAI 兼容模型支持 (DeepSeek 走这个) -->
+        <!-- OpenAI 兼容模型支持 (DeepSeek / Ollama 都走这个) -->
         <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-openai</artifactId>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-model-openai</artifactId>
+            <version>${agentscope.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

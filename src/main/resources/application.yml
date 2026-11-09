@@ -4,17 +4,6 @@ server:
 spring:
   application:
     name: agentscope-chat
-  # 关掉 Spring AI 自带的自动配置 —— 我们在 ChatModelFactory 里手动 @Bean 创建
-  autoconfigure:
-    exclude:
-      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
-      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
-      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
-      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
-      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
-      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
-      - org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration
-      - org.springframework.ai.model.ollama.autoconfigure.OllamaEmbeddingAutoConfiguration
 
 chat:
   models:

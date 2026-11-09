@@ -1,5 +1,7 @@
 package com.example.chat;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 public class ModelDefinition {
 
     private String id;
@@ -18,6 +20,7 @@ public class ModelDefinition {
     public String getBaseUrl() { return baseUrl; }
     public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
 
+    @JsonIgnore
     public String getApiKey() { return apiKey; }
     public void setApiKey(String apiKey) { this.apiKey = apiKey; }
 
