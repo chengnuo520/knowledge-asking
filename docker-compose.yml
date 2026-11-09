@@ -1,11 +1,32 @@
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${RAG_DB_NAME:-ragdb}
+      - POSTGRES_USER=${RAG_DB_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${RAG_DB_PASSWORD:-postgres}
+    volumes:
+      - rag-postgres-data:/var/lib/postgresql/data
+
   deepseek-chat:
     build: .
     image: deepseek-chat:latest
     container_name: deepseek-chat
     restart: unless-stopped
+    depends_on:
+      - postgres
     ports:
       - "8083:8080"
     environment:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - RAG_DB_URL=jdbc:postgresql://postgres:5432/${RAG_DB_NAME:-ragdb}
+      - RAG_DB_USERNAME=${RAG_DB_USERNAME:-postgres}
+      - RAG_DB_PASSWORD=${RAG_DB_PASSWORD:-postgres}
+
+volumes:
+  rag-postgres-data:

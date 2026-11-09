@@ -4,6 +4,28 @@ server:
 spring:
   application:
     name: agentscope-chat
+  datasource:
+    url: ${RAG_DB_URL:jdbc:postgresql://localhost:5432/ragdb}
+    username: ${RAG_DB_USERNAME:postgres}
+    password: ${RAG_DB_PASSWORD:postgres}
+    hikari:
+      connection-timeout: 5000
+      initialization-fail-timeout: 5000
+  sql:
+    init:
+      mode: always
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+rag:
+  max-file-size-mb: 20
+  chunk:
+    max-chars: 1024
+    overlap-chars: 128
+    rows-per-chunk: 50
+    tolerance-factor: 3
 
 chat:
   models:

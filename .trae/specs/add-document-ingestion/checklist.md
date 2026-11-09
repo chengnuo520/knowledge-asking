@@ -1,0 +1,36 @@
+# Checklist
+
+- [ ] 上传空文件返回 400 `{"error":"文件为空"}`
+- [ ] 扩展名不在 `.md/.txt/.csv/.pdf/.docx` 时返回 400，错误信息列出五种扩展名
+- [ ] 文件超过 20MB 时返回 400，且提示 20MB 上限
+- [ ] Tika 探测 + 已知扩展名回退生效：`.md` 走 Markdown 解析，`.csv` 走 CSV 解析
+- [ ] Tika 探测到具体 MIME（如 `.md` 实为 PDF）时以字节探测结果为准
+- [ ] 未知 MIME 返回 400，错误信息包含该 MIME
+- [ ] 两个解析器认领同一精确 MIME 时应用启动失败
+- [ ] 应用启动日志打印 MIME → 解析器路由表
+- [ ] Markdown 的标题、列表、GFM 表格、代码块都能解析为对应 Block
+- [ ] `.txt` 按空行切 `ParagraphBlock`，`.csv` 首行作表头，`.pdf/.docx` 经 Tika 降级为段落块
+- [ ] `ChunkBudget` 默认 `1024/128/50/3`，非法配置在构造期抛 `IllegalArgumentException`
+- [ ] 标题路径按层级正确维护（`# → ## → ### → ##` 回退正确）
+- [ ] `content` 保持原文，章节前缀只写入 `embeddingText`，且只补 `content` 中缺失的层级
+- [ ] 表格块每块都保留完整表头，`embeddingText` 用 `列名: 值` 渲染，超预算行整行原子成块
+- [ ] 长段落优先在换行/中文句末/英文句末切分，并带 `overlapChars` 重叠，不切断 URL
+- [ ] 短节合并、`maxChars/4` 最小块并回、`toleranceChars()` 上限符合规则
+- [ ] 未超过容忍上限的代码块保持原子，不被预算切分
+- [ ] `schema.sql` 幂等执行：`vector` 扩展、`rag_documents`、`rag_chunks`、唯一约束与索引存在
+- [ ] 同名同 hash 重复上传返回 `skipped=true`，且库中块数不变
+- [ ] 同名不同 hash 上传沿用旧 `docId`，旧块被整体替换（事务内先删后建）
+- [ ] 不同文件名、相同内容按两份文档入库
+- [ ] 解析/分块失败时库中不出现该文档的半成品记录
+- [ ] 上传成功返回 `docId/docName/chunkCount/skipped/timings{detectMs,parseMs,chunkMs,indexMs}`
+- [ ] `GET /api/rag/documents` 返回文档列表字段符合 spec
+- [ ] `GET /api/rag/documents/{docId}/chunks` 返回 `content` 与 `embeddingText`，`charCount` 正确；不存在时 404
+- [ ] `DELETE /api/rag/documents/{docId}` 返回 `{"deleted":true}`，块级联删除
+- [ ] 重启应用后文档与块仍在
+- [ ] 数据库不可用时应用启动失败，日志能定位是连接问题或缺少 `vector` 扩展
+- [ ] `mvn -o test` 在无网络、无 PostgreSQL 时通过
+- [ ] `JdbcChunkStoreTest` 未设置 `RAG_DB_TEST=true` 时自动跳过，不导致失败
+- [ ] 现有 `/api/models`、`/api/chat`、`/api/vision` 行为与响应结构不变
+- [ ] `docs/04-文档处理链路.md` 每个功能点都包含「要解决的问题 / 具体步骤 / 验收逻辑」，且验收命令与预期可复现
+- [ ] 学习文档明确说明本轮不做向量化，第二个功能用 DashScope `text-embedding-v4`（1024 维）回填并检索
+- [ ] `README.md`、`.env.example`、`docker-compose.yml` 已更新，且未提交真实密钥

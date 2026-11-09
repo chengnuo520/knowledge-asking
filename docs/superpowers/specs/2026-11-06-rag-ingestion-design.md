@@ -68,6 +68,7 @@
 | 解析档位 | P0 只保留 FAST，砍掉 FAST/FIDELITY 二维 | 没有 MinerU，档位是空概念；保留 MIME 路由即可 |
 | 服务分层 | `Controller → IngestionService / RetrievalService / RagService → 纯 Java 领域类` | 领域类不依赖 Spring，方便单测 |
 | 测试 | 用 `FakeEmbeddingModel` 做离线测试；真实评测用环境变量开关 | `mvn test` 不应依赖网络 |
+| 默认嵌入模型 | `bge-m3`（1024 维，中文效果好）；`nomic-embed-text`（768 维）作为轻量替代 | 语料和评测问题都是中文；模型太弱会把“分块问题”误判成“模型问题” |
 
 ---
 
@@ -242,6 +243,8 @@ JSON 文件 `data/chunks.json`：
 ```json
 {
   "version": 1,
+  "embeddingModel": "bge-m3",
+  "dimension": 1024,
   "documents": [
     {
       "docId": "uuid",
@@ -288,6 +291,7 @@ public interface DocumentParser {
 - 同一键被两个 parser 认领 → 启动失败（不要静默覆盖）。
 - `require(mimeType)`：精确优先，再通配，都找不到抛 `UnsupportedDocumentTypeException`；不允许静默回落到 Tika。
 - 启动日志打印路由表，方便观察。
+- P0 不注册任何通配认领；通配表只保留为扩展点（以后接 HTML 时再用）。`.txt` 与 `.md` 都走精确 MIME。
 - P0 不支持解析档位（FAST/FIDELITY）；`spec.parseProfile()` 这类概念不引入。
 
 ### 7.3 MimeTypeDetector
@@ -300,10 +304,17 @@ public interface DocumentParser {
 
 | 解析器 | MIME | 实现 |
 |---|---|---|
-| `MarkdownDocumentParser` | `text/markdown`、`text/x-markdown`、`text/x-web-markdown`、`text/plain` | commonmark AST + `TablesExtension`；Heading/Paragraph/BulletList/OrderedList/FencedCodeBlock/TableBlock |
-| `PlainTextDocumentParser` | `text/plain`（当 Markdown parser 不认领时） | 按空行切 `ParagraphBlock` |
+| `MarkdownDocumentParser` | `text/markdown`、`text/x-markdown`、`text/x-web-markdown` | commonmark AST + `TablesExtension`；Heading/Paragraph/BulletList/OrderedList/FencedCodeBlock/TableBlock |
+| `PlainTextDocumentParser` | `text/plain` | 按空行切 `ParagraphBlock` |
 | `CsvDocumentParser` | `text/csv`、`application/csv` | commons-csv 读第一条为表头，其余为行，产 `TableBlock` |
-| `TikaDocumentParser` | `application/pdf`、`application/msword`、`.docx`、`application/rtf`、`text/html` | Tika `AutoDetectParser` 抽纯文本，按空行切 `ParagraphBlock` |
+| `TikaDocumentParser` | `application/pdf`、`application/msword`、`application/vnd.openxmlformats-officedocument.wordprocessingml.document`、`application/rtf` | Tika `AutoDetectParser` 抽纯文本，按空行切 `ParagraphBlock` |
+
+**归属规则（定死，避免启动期认领冲突）：**
+
+- `text/plain` 的唯一 owner 是 `PlainTextDocumentParser`，Markdown 不认领它。
+- Tika **不认领 `text/*` 通配**，只认领上面列出的精确 MIME。P0 不支持 HTML，避免通配把 `.txt`/`.md` 的路由搅乱。
+- 精确 MIME 优先于通配；如果两个 parser 认领同一个精确 MIME，启动失败。
+- `.md` 走结构解析，`.txt` 走空行段落解析——两种行为不一样，这是有意为之。
 
 **Markdown 解析细节**
 
@@ -479,6 +490,7 @@ public List<float[]> embedAll(List<String> texts) {
 
 - `dimension` 来自 `rag.embedding.dimension`；若配置为 0，用第一次返回的维度推断并记录 WARN。
 - 发生维度不一致时，错误信息要包含：模型名、期望维度、实际维度、当前分区（本项目只有一个库，写 `default`）。
+- 快照里记录了 `embeddingModel` 与 `dimension`。启动加载时若与当前配置不一致，**直接失败**，提示“嵌入模型/维度与已有索引不一致，请删除 `data/chunks.json` 后重新灌库”。不允许同维度换模型后静默混用——那会得到看起来合理但没有意义的相似度。
 
 ### 9.3 ChunkStore
 
@@ -498,10 +510,14 @@ public interface ChunkStore {
 
 - 内存：`Map<String, DocumentRecord> documents`、`Map<String, StoredChunk> chunks`。
 - 启动 `@PostConstruct`：若 `data/chunks.json` 存在，读入；否则空。
-- 每次写操作后持久化：
-  - 写临时文件 `chunks.json.tmp`；
-  - `Files.move(tmp, target, ATOMIC_MOVE, REPLACE_EXISTING)`；
-  - 失败时保留旧文件并抛异常。
+- 写操作采用 **copy-on-write + 原子替换**，保证内存与磁盘不 diverged：
+  1. `StoreSnapshot next = current.deepCopy()`；
+  2. 在 `next` 上做增删改；
+  3. 把 `next` 序列化到 `chunks.json.tmp`；
+  4. `Files.move(tmp, target, ATOMIC_MOVE, REPLACE_EXISTING)`；
+  5. 文件替换成功后，才把 `volatile StoreSnapshot current` 指向 `next`。
+  6. 任一步失败：丢弃 `next`，`current` 与磁盘上的旧文件都不变，向上抛异常。
+- 读操作直接读 `current`，不加锁（引用替换是原子的）；写操作 `synchronized`。
 - `replaceDocument`：
   1. 删除该 docId 的旧 chunks；
   2. 写入新 chunks；
@@ -533,7 +549,8 @@ double cosine(float[] a, float[] b) {
 
 ```java
 public IngestResult ingest(String filename, byte[] bytes) {
-    // 1. 校验大小（默认 20MB）与 MIME 白名单
+    // 1. 校验大小（默认 20MB）与扩展名白名单：.md/.txt/.csv/.pdf/.docx
+    //    先按扩展名拒绝；再用 Tika 探测 MIME，交给 ParserRegistry；Registry 不认领同样拒绝
     // 2. contentHash = SHA-256(bytes)
     // 3. 查 documents：同名 + 同 hash + chunkCount > 0 → skipped=true
     // 4. docId：同名旧文档沿用旧 docId；否则 UUID
@@ -695,8 +712,9 @@ file=@保修政策.md
 错误：
 
 - 文件为空 / 超过 20MB → 400
-- MIME 不在白名单 → 400，消息包含支持的扩展名
-- 解析器缺失 → 400，消息包含 MIME
+- 扩展名不在 `.md/.txt/.csv/.pdf/.docx` → 400，消息列出这五个扩展名
+- 扩展名通过但 Tika 探测的 MIME 无解析器认领 → 400，消息包含该 MIME
+- 文件名缺失 → 使用 `upload.bin`，随后按 MIME 判定；无法判定则 400
 
 ### 13.2 文档列表
 
@@ -808,8 +826,8 @@ rag:
   embedding:
     base-url: ${EMBEDDING_BASE_URL:${OLLAMA_BASE_URL:http://localhost:11434}}
     api-key: ${EMBEDDING_API_KEY:ollama}
-    model: ${EMBEDDING_MODEL:nomic-embed-text}
-    dimension: ${EMBEDDING_DIMENSION:768}
+    model: ${EMBEDDING_MODEL:bge-m3}
+    dimension: ${EMBEDDING_DIMENSION:1024}
     batch-size: 16
 ```
 
@@ -910,12 +928,15 @@ rag:
 
 ```java
 public class FakeEmbeddingModel implements EmbeddingModel {
-    // 对文本做 SHA-256，取前 N 个字节归一化成 float[]
-    // 同一文本稳定、不同文本尽量分散
+    // 词法哈希向量：文本 -> 字符 unigram + 字符 bigram
+    // 每个 token 哈希到固定桶（建议 256），计频后做 L2 归一化
+    // 目的：同一文本稳定；"15 天" 与含 "15 天" 的块有词法重叠
 }
 ```
 
-用途：测试解析、分块、存储、检索链路，不测试语义质量。
+- 不能只做 SHA-256：哈希向量之间没有词法关系，`search("15 天")` 无法命中含 “15 天” 的块，离线测试就失去意义。
+- 词法哈希让离线测试可以验证“关键词召回”和“排序”两件事；语义质量仍由真实嵌入的 `RagEvalTest` 验证。
+- 用途：测试解析、分块、存储、检索链路；不测试语义质量。
 
 ---
 
@@ -968,16 +989,17 @@ public class FakeEmbeddingModel implements EmbeddingModel {
 
 ### 19.2 集成测试
 
-- `RagPipelineTest`：用 `FakeEmbeddingModel` + 固定 md/csv 文档，断言：
+- `RagPipelineTest`：用 `FakeEmbeddingModel`（词法哈希）+ 固定 md/csv 文档，断言：
   - 上传后 `chunkCount > 0`；
   - `search("15 天")` 返回的块包含 `15 天`；
   - `outlinePath` 包含 `退换货`；
   - 删除文档后检索结果为空。
+  - 这些断言能成立，前提是 Fake 用词法哈希而不是 SHA-256；它验证的是“分块 + 存储 + 检索”的链路，不是语义质量。
 - `RagEvalTest`：真实嵌入，`RAG_EVAL=true` 时才跑。
 
 ### 19.3 手动验收（真实模型）
 
-1. `ollama pull nomic-embed-text`（或配置其它嵌入服务）。
+1. `ollama pull bge-m3`（1024 维；轻量替代 `nomic-embed-text` 是 768 维，换用时同步改 `EMBEDDING_MODEL` 与 `EMBEDDING_DIMENSION`）。
 2. 启动应用，上传 `保修政策.md`。
 3. `GET /api/rag/documents/{docId}/chunks`：确认 `content` 与 `embeddingText` 不同。
 4. `POST /api/rag/search`：确认 top1 是退换货块，`outlinePath` 正确。
@@ -992,7 +1014,8 @@ public class FakeEmbeddingModel implements EmbeddingModel {
 | 风险 | 影响 | 处理 |
 |---|---|---|
 | PDF/DOCX 经 Tika 只有纯文本，无标题/表格结构 | 分块质量不如 Markdown | P0 接受；README 写清楚；P2 再引入版面解析 |
-| Ollama 未拉取嵌入模型 | 启动后第一次上传失败 | README + 错误信息明确提示 `ollama pull` |
+| Ollama 未拉取 `bge-m3` | 启动后第一次上传失败 | README + 错误信息明确提示 `ollama pull bge-m3` |
+| 换嵌入模型但维度相同 | 新旧向量静默混用，相似度失真 | 快照记录 `embeddingModel` + `dimension`，启动不一致直接失败 |
 | 嵌入服务不支持 OpenAI 兼容 `/v1/embeddings` | 无法生成向量 | 只承诺 OpenAI 兼容端点；README 给出 Ollama 示例 |
 | JSON 单文件持久化随块数增长变慢 | 大文档上传慢 | Demo 限制 20MB；注释说明生产应换 pgvector |
 | 中文分词/句末标点遗漏 | 切点不理想 | 单测覆盖常见标点；先保证不切在 URL/数字中间 |
@@ -1045,6 +1068,8 @@ public class FakeEmbeddingModel implements EmbeddingModel {
 ## 23. Definition of Done
 
 - [ ] `mvn test` 离线通过。
+- [ ] 离线测试能验证关键词召回（FakeEmbeddingModel 词法哈希），而不是只验证“能跑通”。
+- [ ] 修改 `EMBEDDING_MODEL` 后启动，若与 `data/chunks.json` 记录不一致，应用明确失败并提示重新灌库。
 - [ ] 启动应用，上传 `.md / .txt / .csv / .pdf / .docx` 各一份，均能检索。
 - [ ] 块预览能看到 `content` 与 `embeddingText` 的差异。
 - [ ] 相同文件重复上传返回 `skipped=true`。
