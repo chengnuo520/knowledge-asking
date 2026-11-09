@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新增功能 01：接口限流（固定窗口 + 429 + Retry-After）</title>
+<style>
+  :root { --fg:#1d2129; --muted:#4e5969; --line:#e5e6eb; --bg:#ffffff; --code:#f7f8fa; --accent:#165dff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#f5f6f8; color:var(--fg);
+         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+         font-size:15px; line-height:1.75; }
+  .sheet { max-width: 960px; margin: 32px auto 64px; background:var(--bg);
+            padding: 48px 56px 64px; border:1px solid var(--line); border-radius:12px; }
+  h1 { font-size:26px; line-height:1.4; margin:0 0 8px; }
+  h2 { font-size:20px; margin:40px 0 12px; padding-top:16px; border-top:1px solid var(--line); }
+  h3 { font-size:16px; margin:26px 0 10px; }
+  p { margin:10px 0; }
+  a { color:var(--accent); text-decoration:none; }
+  blockquote { margin:16px 0; padding:10px 16px; background:#f2f7ff; border-left:3px solid var(--accent);
+                color:var(--muted); border-radius:0 6px 6px 0; }
+  blockquote p { margin:6px 0; }
+  code { background:var(--code); padding:2px 6px; border-radius:4px;
+          font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size:13px; }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:8px;
+         padding:14px 16px; overflow-x:auto; margin:14px 0; }
+  pre code { background:none; padding:0; font-size:13px; line-height:1.6; }
+  table { border-collapse:collapse; width:100%; margin:16px 0; font-size:14px; }
+  th, td { border:1px solid var(--line); padding:8px 12px; text-align:left; vertical-align:top; }
+  th { background:#f7f8fa; font-weight:600; }
+  tr:nth-child(even) td { background:#fcfcfd; }
+  img { max-width:100%; border:1px solid var(--line); border-radius:8px; margin:12px 0 4px;
+         box-shadow:0 2px 10px rgba(0,0,0,.06); display:block; }
+  hr { border:none; border-top:1px solid var(--line); margin:32px 0; }
+  ul, ol { padding-left:24px; }
+  li { margin:4px 0; }
+</style>
+</head>
+<body>
+<div class="sheet">
+<h1>新增功能 01：接口限流（固定窗口 + 429 + Retry-After）</h1>
+<blockquote>
+<p>这是给项目<strong>新加</strong>的一个功能，不是既有能力。文档同时是「实现教程」和「验收记录」：<br>
+照着第 3~5 节做完，你会得到一个每分钟限流 N 次、超限返回 429 的接口层，并能亲手看到 200→429 的转折。</p>
+<p>证据来自 2026-11-09 的真实复现，文件在 <code>docs/evidence-复现/限流/</code>。</p>
+</blockquote>
+<hr>
+<h2>1. 为什么加它，为什么是"固定窗口"</h2>
+<p>项目原来的 <code>/api/**</code> 完全裸奔：任何人写个 <code>while(true) curl</code> 就能把远程模型的额度打空，也能把服务打满。</p>
+<p>限流算法有好几种，本功能选<strong>固定窗口计数器</strong>，理由很直接：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>状态量</th>
+<th>代码量</th>
+<th>精度</th>
+<th>本项目取舍</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>固定窗口</td>
+<td>窗口起点 + 计数（2 个字段）</td>
+<td>~20 行</td>
+<td>窗口边界可突刺 2 倍</td>
+<td>✅ 采用</td>
+</tr>
+<tr>
+<td>滑动窗口日志</td>
+<td>每个请求的时间戳列表</td>
+<td>~60 行</td>
+<td>准</td>
+<td>内存随流量线性增长，不划算</td>
+</tr>
+<tr>
+<td>令牌桶 / 漏桶</td>
+<td>令牌数 + 上次补充时间</td>
+<td>~40 行</td>
+<td>支持匀速与突发</td>
+<td>需要额外调参（容量/速率），讲解成本高</td>
+</tr>
+</tbody>
+</table>
+<p>固定窗口的缺陷是<strong>边界突刺</strong>：窗口 1 的最后 1 秒打满 N 次，窗口 2 的第 1 秒又能打满 N 次，瞬时可达 2N。<br>
+对"防止额度被打空"这个目标，2 倍误差可以接受；如果哪天要求平滑限速，再换令牌桶（文档 6 节给了改造点）。</p>
+<hr>
+<h2>2. 前置条件</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>要求</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JDK</td>
+<td>17+</td>
+<td>实测 17.0.18</td>
+</tr>
+<tr>
+<td>Maven</td>
+<td>3.9+</td>
+<td>实测 3.9.11</td>
+</tr>
+<tr>
+<td>端口</td>
+<td>8086 空闲</td>
+<td>用 8086 是为了不和 8083 的日常实例抢额度</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td><strong>不需要</strong></td>
+<td>加 <code>--spring.sql.init.mode=never</code> 跳过 <code>schema.sql</code></td>
+</tr>
+<tr>
+<td>Ollama / API Key</td>
+<td>需要（仅"界面验证"那一步要真实模型）</td>
+<td>只用 curl 验证限流的话，<strong>一个 Key 都不需要</strong></td>
+</tr>
+<tr>
+<td>Node.js</td>
+<td>可选</td>
+<td>只用于重跑截图脚本</td>
+</tr>
+<tr>
+<td>浏览器</td>
+<td>Chrome / Edge</td>
+<td>手动验证</td>
+</tr>
+</tbody>
+</table>
+<p>关键点：<strong>限流发生在进入 Controller 之前</strong>，所以用 <code>GET /api/models</code>（不调模型、不花钱、毫秒级）就能验证，完全不需要 API Key。</p>
+<hr>
+<h2>3. 实现（三处改动）</h2>
+<h3>3.1 新增配置类 <code>RateLimitProperties</code></h3>
+<p>文件：<code>src/main/java/com/example/chat/ratelimit/RateLimitProperties.java</code></p>
+<pre><code class="language-java">package com.example.chat.ratelimit;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
+
+@Component
+@ConfigurationProperties(prefix = &quot;rate-limit&quot;)
+public class RateLimitProperties {
+
+    private boolean enabled = true;      // 是否开启
+    private int limit = 60;              // 单窗口允许的请求数
+    private int windowSeconds = 60;      // 窗口长度（秒）
+    private int maxClients = 10000;      // 最多记录多少客户端
+
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+    public int getLimit() { return limit; }
+    public void setLimit(int limit) { this.limit = limit; }
+
+    public int getWindowSeconds() { return windowSeconds; }
+    public void setWindowSeconds(int windowSeconds) { this.windowSeconds = windowSeconds; }
+
+    public int getMaxClients() { return maxClients; }
+    public void setMaxClients(int maxClients) { this.maxClients = maxClients; }
+}
+</code></pre>
+<h3>3.2 新增过滤器 <code>RateLimitFilter</code></h3>
+<p>文件：<code>src/main/java/com/example/chat/ratelimit/RateLimitFilter.java</code></p>
+<pre><code class="language-java">package com.example.chat.ratelimit;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Component
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+public class RateLimitFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
+    private static final String API_PREFIX = &quot;/api/&quot;;
+
+    private final RateLimitProperties props;
+    private final ConcurrentHashMap&lt;String, Window&gt; windows = new ConcurrentHashMap&lt;&gt;();
+
+    public RateLimitFilter(RateLimitProperties props) {
+        this.props = props;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain chain) throws ServletException, IOException {
+
+        if (!props.isEnabled() || !request.getRequestURI().startsWith(API_PREFIX)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        long windowMs = Math.max(1, props.getWindowSeconds()) * 1000L;
+        String client = clientKey(request);
+
+        if (windows.size() &gt; props.getMaxClients()) {     // 内存兜底
+            windows.clear();
+            log.warn(&quot;限流窗口表超过 {} 个客户端，已整体重置&quot;, props.getMaxClients());
+        }
+
+        Window window = windows.computeIfAbsent(client, k -&gt; new Window(System.currentTimeMillis()));
+
+        boolean allowed;
+        int remaining;
+        long retryAfterSeconds;
+
+        synchronized (window) {
+            long now = System.currentTimeMillis();
+            if (now - window.start &gt;= windowMs) {         // 窗口过期 → 重新计数
+                window.start = now;
+                window.count = 0;
+            }
+            if (window.count &lt; props.getLimit()) {
+                window.count++;
+                allowed = true;
+                remaining = props.getLimit() - window.count;
+                retryAfterSeconds = 0;
+            } else {
+                allowed = false;
+                remaining = 0;
+                retryAfterSeconds = Math.max(1, (window.start + windowMs - now + 999) / 1000);
+            }
+        }
+
+        response.setHeader(&quot;X-RateLimit-Limit&quot;, String.valueOf(props.getLimit()));
+        response.setHeader(&quot;X-RateLimit-Remaining&quot;, String.valueOf(remaining));
+
+        if (allowed) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long resetInMs = Math.max(0, window.start + windowMs - now);
+        response.setHeader(&quot;Retry-After&quot;, String.valueOf(retryAfterSeconds));
+        response.setHeader(&quot;X-RateLimit-Reset&quot;, String.valueOf(retryAfterSeconds));
+        response.setStatus(429);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType(&quot;application/json;charset=UTF-8&quot;);
+        response.getWriter().write(&quot;{\&quot;error\&quot;:\&quot;请求过于频繁，请 &quot; + retryAfterSeconds + &quot; 秒后重试\&quot;,&quot;
+                + &quot;\&quot;retryAfterSeconds\&quot;:&quot; + retryAfterSeconds + &quot;,&quot;
+                + &quot;\&quot;limit\&quot;:&quot; + props.getLimit() + &quot;,&quot;
+                + &quot;\&quot;windowSeconds\&quot;:&quot; + props.getWindowSeconds() + &quot;}&quot;);
+
+        log.warn(&quot;限流拦截 uri={} client={} 窗口剩余 {}ms&quot;, request.getRequestURI(), client, resetInMs);
+    }
+
+    private static String clientKey(HttpServletRequest request) {
+        String forwarded = request.getHeader(&quot;X-Forwarded-For&quot;);
+        if (forwarded != null &amp;&amp; !forwarded.isBlank()) {
+            int comma = forwarded.indexOf(',');
+            return (comma &gt; 0 ? forwarded.substring(0, comma) : forwarded).trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    private static final class Window {
+        long start;
+        int count;
+
+        Window(long start) { this.start = start; }
+    }
+}
+</code></pre>
+<h3>3.3 配置默认额度</h3>
+<p>文件：<code>src/main/resources/application.yml</code>（追加在 <code>rag:</code> 段之后）</p>
+<pre><code class="language-yaml"># 接口限流（RateLimitFilter）：固定窗口，按客户端 IP 计数
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  limit: ${RATE_LIMIT_LIMIT:60}
+  window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+  max-clients: 10000
+</code></pre>
+<blockquote>
+<p>默认 60 次/分钟，日常开发完全无感；演示时用启动参数临时改小，不动配置文件。</p>
+</blockquote>
+<p><strong>前端不用改</strong>：既有的发送逻辑已经是「429 也照常 <code>resp.json()</code>，有 <code>error</code> 字段就显示红色气泡」，所以限流提示天然就能显示出来。</p>
+<hr>
+<h2>4. 启动（把额度调到 3 次，方便肉眼观察）</h2>
+<pre><code class="language-bash">cd &quot;F:/coding demo&quot;
+set -a &amp;&amp; . ./.env &amp;&amp; set +a
+export no_proxy=localhost,127.0.0.1
+
+mvn -DskipTests spring-boot:run \
+  -Dspring-boot.run.jvmArguments=&quot;-Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8&quot; \
+  -Dspring-boot.run.arguments=&quot;--server.port=8086 --spring.sql.init.mode=never --spring.datasource.hikari.initialization-fail-timeout=-1 --rate-limit.limit=3 --rate-limit.window-seconds=60&quot;
+</code></pre>
+<p><strong>成功判定</strong>（取自 <code>evidence-复现/限流/01-启动日志.log</code>）：</p>
+<pre><code>Tomcat started on port 8086 (http) with context path '/'
+Started DemoApplication in 4.613 seconds (process running for 5.797)
+</code></pre>
+<blockquote>
+<p><code>-Dstdout.encoding=UTF-8</code> 是为了让重定向到文件的中文日志不乱码（Windows 上默认会用 GBK 写管道）。不加也能跑，只是日志里的中文会变成 <code>????</code>。</p>
+</blockquote>
+<hr>
+<h2>5. 逐步复现与证据</h2>
+<h3>步骤 1：命令行验证（3 次放行 + 1 次拦截）</h3>
+<p>完整脚本：<code>evidence-复现/限流/verify-ratelimit.sh</code>（一条命令跑完）：</p>
+<pre><code class="language-bash">bash docs/evidence-复现/限流/verify-ratelimit.sh http://localhost:8086
+</code></pre>
+<p>脚本核心就是「同一个客户端连打 4 次」：</p>
+<pre><code class="language-bash">for i in 1 2 3 4; do
+  curl -s -D - -o /tmp/body.txt -H &quot;X-Forwarded-For: 10.0.0.9&quot; http://localhost:8086/api/models \
+    | grep -Ei &quot;^HTTP/|^X-RateLimit|^Retry-After&quot;
+done
+</code></pre>
+<p><strong>实测输出</strong>（取自 <code>evidence-复现/限流/终端验证.log</code>）：</p>
+<pre><code>---------- 第 1 次 ----------
+HTTP/1.1 200
+X-RateLimit-Limit: 3
+X-RateLimit-Remaining: 2
+
+---------- 第 2 次 ----------
+HTTP/1.1 200
+X-RateLimit-Limit: 3
+X-RateLimit-Remaining: 1
+
+---------- 第 3 次 ----------
+HTTP/1.1 200
+X-RateLimit-Limit: 3
+X-RateLimit-Remaining: 0
+
+---------- 第 4 次 ----------
+HTTP/1.1 429
+X-RateLimit-Limit: 3
+X-RateLimit-Remaining: 0
+Retry-After: 59
+X-RateLimit-Reset: 59
+body: {&quot;error&quot;:&quot;请求过于频繁，请 59 秒后重试&quot;,&quot;retryAfterSeconds&quot;:59,&quot;limit&quot;:3,&quot;windowSeconds&quot;:60}
+</code></pre>
+<p>三个要点：</p>
+<ol>
+<li><code>X-RateLimit-Remaining</code> 每次减 1，到 0 之后下一次就 429——<strong>放行与拦截是同一条计数线上连续的两个状态</strong>；</li>
+<li>429 带 <code>Retry-After: 59</code>，客户端知道该等多久（标准语义，/api 调用方如 SDK、网关都认这个头）；</li>
+<li>body 是 JSON 且字段与业务错误一致（只有 <code>error</code> 是最小公共集），前端不用写特判。</li>
+</ol>
+<h3>步骤 2：换一个客户端，计数互不影响</h3>
+<pre><code class="language-bash">curl -s -D - -o /dev/null -H &quot;X-Forwarded-For: 10.0.0.8&quot; http://localhost:8086/api/models | grep -Ei &quot;^HTTP/|^X-RateLimit&quot;
+# HTTP/1.1 200
+# X-RateLimit-Limit: 3
+# X-RateLimit-Remaining: 2
+</code></pre>
+<p>限流是<strong>按客户端</strong>而不是全局的：10.0.0.9 已被拦，10.0.0.8 才用掉第 1 次。</p>
+<h3>步骤 3：后端日志（被拦截时留下了什么）</h3>
+<pre><code>2026-11-09T00:52:56.863+08:00  WARN 11836 --- [agentscope-chat] [nio-8086-exec-8] c.e.chat.ratelimit.RateLimitFilter : 限流拦截 uri=/api/models client=10.0.0.9 窗口剩余 58679ms
+</code></pre>
+<p><code>窗口剩余 xx ms</code> 是写日志那一刻距离窗口重置的时间，和 <code>Retry-After: 59</code> 互相印证。</p>
+<h3>步骤 4：界面验证（用户看到什么）</h3>
+<p>浏览器打开 <a href="http://localhost:8086/">http://localhost:8086/</a>，连发 3 条消息。<strong>注意页面加载本身会 <code>GET /api/models</code>，用掉 1 次额度</strong>，所以 3 次配额里只剩 2 次给对话：</p>
+<p>第 1、2 条正常回复：</p>
+<p><img alt="限流前的正常对话" src="evidence-复现/限流/02-限流前-正常回复.png"></p>
+<p>第 3 条被拦，红色气泡显示后端返回的 <code>error</code> 原文：</p>
+<p><img alt="第 3 条被限流" src="evidence-复现/限流/03-触发限流-错误气泡.png"></p>
+<p>「请求过于频繁，请 57 秒后重试」——秒数直接来自响应体，前端一行代码都没改。</p>
+<blockquote>
+<p>复现机在同一窗口内先跑过 CLI 验证，所以浏览器这次只有 2 次额度可用（<code>limit=3</code>，其中 1 次被 <code>GET /api/models</code> 占掉）。想得到完全一样的"2 成功 + 1 拦截"，先等 60 秒窗口过去再操作。</p>
+</blockquote>
+<h3>步骤 5：证明它拦在「路由」和「参数解析」之前</h3>
+<p>这一步回答一个关键疑问：<strong>限流到底是不是最外层？</strong> 办法是让额度用尽，然后请求两个"正常情况下不会返回 429"的地址。</p>
+<pre><code class="language-bash"># 额度已用尽（同一客户端 10.9.9.9）
+# ① 空 body 的 POST /api/chat：正常应 400（参数解析失败），实测被 429 挡下
+curl -s -D - -X POST -H &quot;Content-Type: application/json&quot; -H &quot;X-Forwarded-For: 10.9.9.9&quot; \
+  -d '' http://localhost:8087/api/chat | grep -Ei &quot;^HTTP/|^\{&quot;
+# HTTP/1.1 429
+# {&quot;error&quot;:&quot;请求过于频繁，请 53 秒后重试&quot;,&quot;retryAfterSeconds&quot;:53,&quot;limit&quot;:2,&quot;windowSeconds&quot;:60}
+
+# ② 不存在的 /api/nope：正常应 404（路由找不到），实测同样是 429
+curl -s -o /dev/null -D - -H &quot;X-Forwarded-For: 10.9.9.9&quot; http://localhost:8087/api/nope | grep -Ei &quot;^HTTP/&quot;
+# HTTP/1.1 429
+</code></pre>
+<p>400 和 404 都没有出现，说明请求在<strong>进入 DispatcherServlet 之前</strong>就被写下 429 并结束了。<br>
+更硬的对照在日志里（用 <code>--logging.level.org.springframework.web=DEBUG</code> 启动）：</p>
+<pre><code># 放行的两次请求：DispatcherServlet 留下了处理记录
+DEBUG ... o.s.web.servlet.DispatcherServlet : GET &quot;/api/models&quot;, parameters={}
+DEBUG ... o.s.web.servlet.DispatcherServlet : Completed 200 OK
+
+# 被拦的三次请求：只有 RateLimitFilter 的 WARN，没有任何 DispatcherServlet 记录
+WARN ... c.e.chat.ratelimit.RateLimitFilter : 限流拦截 uri=/api/models client=10.9.9.9 窗口剩余 52876ms
+WARN ... c.e.chat.ratelimit.RateLimitFilter : 限流拦截 uri=/api/chat   client=10.9.9.9 窗口剩余 52519ms
+WARN ... c.e.chat.ratelimit.RateLimitFilter : 限流拦截 uri=/api/nope   client=10.9.9.9 窗口剩余 52140ms
+</code></pre>
+<p>完整片段见 <code>evidence-复现/限流/02-过滤器链与拦截时序.log</code>。</p>
+<p>同一份日志里还有一行"注册证据"，它解释了<strong>为什么所有请求都会经过这个过滤器</strong>：</p>
+<pre><code>Mapping filters: characterEncodingFilter urls=[/*] order=-2147483648,
+                 rateLimitFilter        urls=[/*] order=-2147483638,
+                 formContentFilter      urls=[/*] order=-9900,
+                 requestContextFilter   urls=[/*] order=-105
+</code></pre>
+<ul>
+<li><code>urls=[/*]</code>：映射到<strong>所有路径</strong>，所以静态资源、404 路径、multipart 上传都会进入 <code>doFilterInternal</code>；</li>
+<li><code>order=-2147483638</code> 正好等于 <code>Ordered.HIGHEST_PRECEDENCE + 10</code>（-2147483648 + 10）：只排在 <code>characterEncodingFilter</code> 之后，位列 <code>formContentFilter</code>、<code>requestContextFilter</code> <strong>之前</strong>；整条链走完才轮到 <code>DispatcherServlet</code>。</li>
+</ul>
+<p>因此准确的说法是：<strong>所有 HTTP 请求都会进入限流过滤器</strong>，但只有 <code>/api/</code> 前缀的请求才计数、才可能被 429；<br>
+非 <code>/api/</code> 请求在方法第一行就被放行（不加 <code>X-RateLimit-*</code> 头，也不占额度）。</p>
+<hr>
+<h2>6. 设计要点（讲解用）</h2>
+<table>
+<thead>
+<tr>
+<th>点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>为什么在 Filter 而不是 Controller/AOP</td>
+<td>限流要在<strong>最外层</strong>做：越早拦截，越省后面的线程、连接、模型调用；Filter 还能覆盖以后新增的所有 <code>/api/*</code> 端点</td>
+</tr>
+<tr>
+<td>为什么 <code>synchronized (window)</code> 而不是 <code>ConcurrentHashMap.compute</code></td>
+<td>一个窗口要做「判断过期 + 自增 + 计算剩余」三步，必须原子；锁粒度只到单个客户端，不同 IP 互不阻塞</td>
+</tr>
+<tr>
+<td>为什么 key 用 IP</td>
+<td>项目没有登录体系，IP 是唯一稳定标识；接入登录后换成 userId 即可（改 <code>clientKey</code> 一处）</td>
+</tr>
+<tr>
+<td><code>X-Forwarded-For</code> 的双刃性</td>
+<td>部署在 Nginx/网关后面时，<code>remoteAddr</code> 永远是代理 IP，必须读 XFF；但<strong>直接暴露公网时可以伪造 XFF 绕过限流</strong>。生产环境应只信任可信代理写入的这个头</td>
+</tr>
+<tr>
+<td>内存会涨吗</td>
+<td>每个客户端一个 <code>Window</code>（2 个 long/int），上限由 <code>max-clients</code> 兜底，超过就整体 <code>clear()</code>——极简策略，代价是重置瞬间会短暂放宽</td>
+</tr>
+<tr>
+<td>多实例/集群怎么办</td>
+<td>本实现是<strong>单机内存</strong>计数，多副本时每个副本各算各的；要全局精确限流，把 <code>windows</code> 换成 Redis（<code>INCR</code> + <code>EXPIRE</code>）即可，Filter 结构不用动</td>
+</tr>
+<tr>
+<td>为什么返回 429 而不是 403</td>
+<td>429 Too Many Requests 是"限流"的标准语义，配合 <code>Retry-After</code> 是 RFC 6585 的约定；403 表示"没权限"，会误导客户端</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>7. 验证结果汇总</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>检查项</th>
+<th>预期</th>
+<th>实测（2026-11-09）</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>应用启动（限额 3）</td>
+<td>8086 可访问</td>
+<td><code>Started DemoApplication in 4.613 seconds</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>2</td>
+<td>前 3 次请求</td>
+<td>200，<code>Remaining</code> 依次 2/1/0</td>
+<td>完全一致</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>3</td>
+<td>第 4 次请求</td>
+<td>429 + <code>Retry-After</code></td>
+<td><code>429</code>，<code>Retry-After: 59</code>，JSON 带秒数</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>4</td>
+<td>客户端隔离</td>
+<td>另一个 IP 立即放行</td>
+<td>10.0.0.8 → <code>200</code>，<code>Remaining: 2</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>5</td>
+<td>后端日志</td>
+<td>记录被拦的 uri/客户端/剩余窗口</td>
+<td><code>限流拦截 uri=/api/models client=10.0.0.9 窗口剩余 58679ms</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>6</td>
+<td>界面提示</td>
+<td>红色气泡显示后端文案</td>
+<td>「请求过于频繁，请 57 秒后重试」</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>7</td>
+<td>不影响既有功能</td>
+<td>非 <code>/api/</code> 请求不计数；正常额度下功能不变</td>
+<td><code>curl -D - /</code> 无 <code>X-RateLimit-*</code> 头；<code>limit=60</code> 时既有接口正常</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>8</td>
+<td>单元测试回归</td>
+<td>52 通过 / 3 跳过（需库）</td>
+<td><code>Tests run: 52, Failures: 0, Errors: 0, Skipped: 3</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>9</td>
+<td>注册到所有路径</td>
+<td><code>urls=[/*]</code>，order 紧跟 characterEncodingFilter</td>
+<td>启动日志 <code>rateLimitFilter urls=[/*] order=-2147483638</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>10</td>
+<td>拦在路由之前</td>
+<td>不存在的 <code>/api/nope</code> 也返回 429 而非 404</td>
+<td><code>HTTP/1.1 429</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>11</td>
+<td>拦在参数解析之前</td>
+<td>空 body 的 <code>POST /api/chat</code> 返回 429 而非 400</td>
+<td><code>HTTP/1.1 429</code> + JSON 错误体</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>12</td>
+<td>未进入 MVC</td>
+<td>被拦请求无 DispatcherServlet 日志（放行的有）</td>
+<td>对照组日志见步骤 5</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>8. 常见问题</h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>原因</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>只发了 2 条就 429</td>
+<td>页面加载的 <code>GET /api/models</code> 也占 1 次</td>
+<td>把 <code>limit</code> 调大，或按本节说明等待窗口重置</td>
+</tr>
+<tr>
+<td>改了 <code>application.yml</code> 没生效</td>
+<td>启动参数优先级更高</td>
+<td>检查是否还带着 <code>--rate-limit.limit=...</code></td>
+</tr>
+<tr>
+<td>日志中文乱码</td>
+<td>Windows 重定向输出用 GBK</td>
+<td>加 <code>-Dstdout.encoding=UTF-8</code></td>
+</tr>
+<tr>
+<td>所有客户端一起被限</td>
+<td><code>max-clients</code> 过小导致 <code>clear()</code></td>
+<td>调大 <code>max-clients</code>，或换成 Redis 方案</td>
+</tr>
+<tr>
+<td>想只针对某个接口</td>
+<td>当前是 <code>/api/</code> 前缀全包</td>
+<td>在 <code>doFilterInternal</code> 里加白名单/黑名单判断</td>
+</tr>
+<tr>
+<td>想彻底关掉</td>
+<td>—</td>
+<td><code>--rate-limit.enabled=false</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>回滚</strong>：删掉 <code>ratelimit/</code> 两个类 + <code>application.yml</code> 里 <code>rate-limit:</code> 段，即恢复原状（前端无需回滚）。</p>
+<hr>
+<h2>9. 证据文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>evidence-复现/限流/01-启动日志.log</code></td>
+<td>8086 实例启动日志（含限额参数的启动命令输出）</td>
+</tr>
+<tr>
+<td><code>evidence-复现/限流/终端验证.log</code></td>
+<td>4 次连打 + 换客户端的原始终端输出（含响应头）</td>
+</tr>
+<tr>
+<td><code>evidence-复现/限流/02-限流前-正常回复.png</code></td>
+<td>额度未用尽时的正常对话</td>
+</tr>
+<tr>
+<td><code>evidence-复现/限流/03-触发限流-错误气泡.png</code></td>
+<td>第 3 条被 429 拦截，前端红色气泡</td>
+</tr>
+<tr>
+<td><code>evidence-复现/限流/02-过滤器链与拦截时序.log</code></td>
+<td>过滤器注册顺序 + 放行/拦截的 DEBUG 日志对照</td>
+</tr>
+<tr>
+<td><code>evidence-复现/限流/verify-ratelimit.sh</code></td>
+<td>一键重跑上面全部 curl 校验</td>
+</tr>
+<tr>
+<td><code>evidence-复现/截图脚本/shots-ratelimit.cjs</code></td>
+<td>生成两张 UI 截图的 Playwright 脚本</td>
+</tr>
+</tbody>
+</table>
+<p>截图由 <code>playwright-core</code> 驱动本机 Chrome 真实访问页面后截取，非拼接。<br>
+重跑：<code>NODE_PATH=&lt;node_modules&gt; node docs/evidence-复现/截图脚本/shots-ratelimit.cjs</code>（实例需在 8086 且额度为 3）。</p>
+</div>
+</body>
+</html>

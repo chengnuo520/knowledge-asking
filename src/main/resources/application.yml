@@ -27,6 +27,14 @@ rag:
     rows-per-chunk: 50
     tolerance-factor: 3
 
+# 接口限流（RateLimitFilter）：固定窗口，按客户端 IP 计数
+# 演示时可临时调小：--rate-limit.limit=2 --rate-limit.window-seconds=60
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  limit: ${RATE_LIMIT_LIMIT:60}
+  window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+  max-clients: 10000
+
 chat:
   models:
     - id: remote-deepseek
