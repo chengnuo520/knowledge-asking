@@ -1,0 +1,24 @@
+渲染统计 = {
+  "headings": "h1=1 h2=4 h3=0 h4=0",
+  "tables": 1,
+  "tableRows": 4,
+  "codeBlocks": 2,
+  "highlightedSpans": 21,
+  "inlineCode": 13,
+  "blockquote": 1,
+  "lists": 2,
+  "listItems": 6,
+  "links": 2,
+  "strong": 4,
+  "em": 1,
+  "del": 0,
+  "hr": 1,
+  "rawMarkdownLeft": false,
+  "height": 1666
+}
+已截图 02-代码块 {"x":270,"y":657.390625,"width":629.859375,"height":410}
+已截图 03-表格 {"x":269,"y":1253.390625,"width":631.859375,"height":231}
+复制按钮文案 = 已复制 | 剪贴板与原文一致 = false | 长度 416
+XSS 回归 = {"img":0,"script":0,"anchors":[],"strong":1,"del":1,"cells":2,"textKeepsLiteral":true}
+复制按钮文案 = 已复制 | 剪贴板与原文一致（忽略 CRLF） = true | 长度 416
+XSS 回归 = {"img":0,"script":0,"anchors":[],"strong":1,"del":1,"cells":2,"textKeepsLiteral":true}

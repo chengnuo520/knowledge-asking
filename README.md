@@ -22,7 +22,7 @@
 - ✅ 文档处理链路：上传 → 解析 → block-aware 分块 → PostgreSQL 入库 → 块预览（`/api/rag/documents*`）
 - ✅ 简洁聊天 UI（侧边栏模型下拉框 + 输入框 📎 上传图片）
 - ✅ 接口限流（`/api/**` 固定窗口计数，超限 429 + `Retry-After`，可按 IP 隔离，配置见 `rate-limit.*`）
-- ✅ 机器人回复 Markdown 渲染（标题/列表/代码块/行内代码/粗斜体/引用；先转义后渲染，防 prompt 注入型 XSS）
+- ✅ 机器人回复 Markdown 渲染（标题 4 级/列表/代码块+语法高亮+复制/表格/引用/链接/分割线；排版对齐 DeepSeek 网页端，先转义后渲染，防 prompt 注入型 XSS）
 
 ## 当前模型配置
 
@@ -51,6 +51,7 @@
 │   ├── 02-为什么用springai.md
 │   ├── 03-新增功能-接口限流.md        # 新增功能的实现教程 + 验收记录
 │   ├── 04-新增功能-回复Markdown渲染.md
+│   ├── 05-新增功能-Markdown渲染对齐DeepSeek.md   # 排版规范 + 逐步复现 + 前后对比
 │   └── evidence-复现/                # 上述功能的截图、日志、脚本、桩服务
 └── src/main/
     ├── java/com/example/chat/
