@@ -67,32 +67,111 @@
             align-self: flex-start; background: #ffece8; color: #f53f3f;
             border: 1px solid #ffccc7;
         }
-        /* ===== 新增功能②：Markdown 渲染样式（只作用于 bot 气泡） ===== */
-        .message.bot { white-space: normal; }
-        .message.bot .md-p { margin: 0 0 8px; }
-        .message.bot .md-p:last-child { margin-bottom: 0; }
-        .message.bot .md-h { margin: 10px 0 6px; font-size: 15px; font-weight: 600; line-height: 1.5; }
-        .message.bot .md-h:first-child { margin-top: 0; }
-        .message.bot .md-ul, .message.bot .md-ol { margin: 6px 0 8px; padding-left: 22px; }
-        .message.bot .md-ul li, .message.bot .md-ol li { margin: 2px 0; }
-        .message.bot .md-quote {
-            margin: 8px 0; padding: 6px 10px; color: #4e5969;
-            border-left: 3px solid #d9d9d9; background: #fafbfc;
+        /* ===== 机器人回复：对齐 DeepSeek 网页端（chat.deepseek.com）排版规范 =====
+           字号/行高/间距/颜色取自 ds-markdown 的实际 CSS 变量：
+           正文 16px/28px，h1 24/34、h2 22/32、h3 20/30、h4 16/28，
+           段间距 16px，标题上间距 32px，代码块 13/22 + 12px 圆角 + pre 16px 内边距，
+           表格 15/25、分隔线 1px rgba(0,0,0,.1)、链接 #3964fe 悬停下划线 */
+        .message.bot {
+            max-width: min(880px, 86%);
+            padding: 16px 20px;
+            font-size: 16px;
+            line-height: 28px;
+            color: #0f1115;
+            white-space: normal;
         }
-        .message.bot .md-code {
-            margin: 8px 0; padding: 10px 12px; background: #f7f8fa;
-            border: 1px solid #e5e6eb; border-radius: 8px;
-            overflow-x: auto; white-space: pre;
+        .message.bot .md-body {
+            font-family: inherit; font-size: 16px; line-height: 28px; font-weight: 400;
         }
-        .message.bot .md-code code {
-            font-family: ui-monospace, Consolas, "Courier New", monospace;
-            font-size: 12.5px; line-height: 1.6; background: none; padding: 0;
+        .message.bot .md-body > *:first-child { margin-top: 0; }
+        .message.bot .md-body > *:last-child { margin-bottom: 0; }
+        .message.bot .md-p { margin: 16px 0; }
+        .message.bot h1, .message.bot h2, .message.bot h3, .message.bot h4, .message.bot h5, .message.bot h6 {
+            font-family: inherit; color: #0f1115;
         }
-        .message.bot .md-inline {
-            padding: 1px 5px; background: #f2f3f5; border-radius: 4px;
-            font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: 12.5px;
-        }
+        .message.bot h1 { font-size: 24px; line-height: 34px; font-weight: 700; margin: 32px 0 16px; }
+        .message.bot h2 { font-size: 22px; line-height: 32px; font-weight: 700; margin: 32px 0 16px; }
+        .message.bot h3 { font-size: 20px; line-height: 30px; font-weight: 700; margin: 32px 0 16px; }
+        .message.bot h4 { font-size: 16px; line-height: 28px; font-weight: 600; margin: 16px 0; }
+        .message.bot h5, .message.bot h6 { font-size: 16px; line-height: 28px; font-weight: 600; margin: 16px 0; }
         .message.bot strong { font-weight: 600; }
+        .message.bot em { font-style: italic; }
+        .message.bot del { text-decoration: line-through; color: #81858c; }
+        .message.bot a {
+            color: #3964fe; text-decoration: none;
+            transition: color .15s ease;
+        }
+        .message.bot a:hover { text-decoration: underline; text-underline-offset: 3px; }
+        .message.bot ul, .message.bot ol { margin: 16px 0; padding-left: 18px; }
+        .message.bot li { margin: 4px 0; }
+        .message.bot li > ul, .message.bot li > ol { margin: 4px 0; }
+        .message.bot li::marker { color: #0f1115; }
+        .message.bot .task-item { list-style: none; margin-left: -18px; }
+        .message.bot .task-item input { margin-right: 6px; vertical-align: 1px; }
+        .message.bot blockquote {
+            margin: 16px 0; padding-left: 14px;
+            border-left: 2px solid #adb2b8; color: #4e5969;
+        }
+        .message.bot blockquote .md-p { margin: 0; }
+        .message.bot hr {
+            border: none; height: 1px; margin: 32px 0;
+            background: rgba(0, 0, 0, .1);
+        }
+        .message.bot img { max-width: 100%; border-radius: 8px; }
+        .message.bot .md-inline {
+            font: 400 14px/22px Menlo, Monaco, Consolas, "Cascadia Mono", "Courier New", monospace;
+            background: rgba(0, 0, 0, .06); border-radius: 4px;
+            padding: 2px 5px; word-break: break-word;
+        }
+        /* 代码块：容器 #f9fafb + 12px 圆角，顶部 banner（语言名 + 复制），内容 13/22 */
+        .message.bot .md-code {
+            margin: 16px 0; border-radius: 12px; overflow: hidden;
+            background: #f9fafb; border: 1px solid rgba(0, 0, 0, .06);
+        }
+        .message.bot .md-code-banner {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 9px 14px; font-size: 13px; line-height: 18px;
+            color: #81858c; border-bottom: 1px solid rgba(0, 0, 0, .06);
+        }
+        .message.bot .md-copy {
+            border: none; background: transparent; cursor: pointer;
+            font-size: 13px; color: #81858c; padding: 0; font-family: inherit;
+        }
+        .message.bot .md-copy:hover { color: #0f1115; }
+        .message.bot .md-code pre {
+            margin: 0; padding: 16px; overflow-x: auto;
+            font: 400 13px/22px Menlo, Monaco, Consolas, "Cascadia Mono", "Courier New", monospace;
+            white-space: pre-wrap; word-break: break-all; color: #383a42;
+        }
+        .message.bot .md-code code { font: inherit; background: none; padding: 0; }
+        /* 表格：15/25，表头 500 蓝色系分隔线，外层可横向滚动 */
+        .message.bot .md-table-wrap { margin: 16px 0; overflow-x: auto; }
+        .message.bot table { border-collapse: collapse; width: max-content; min-width: 100%; }
+        .message.bot th {
+            font-size: 15px; line-height: 25px; font-weight: 500;
+            padding: 10px 16px; text-align: left; white-space: nowrap;
+            border-bottom: 1px solid rgba(0, 0, 0, .12);
+            max-width: min(30vw, 320px); min-width: 100px;
+        }
+        .message.bot td {
+            font-size: 15px; line-height: 25px; font-weight: 400;
+            padding: 10px 16px; text-align: left; vertical-align: top;
+            border-bottom: 1px solid rgba(0, 0, 0, .1);
+            max-width: min(30vw, 320px); min-width: 100px;
+        }
+        .message.bot th:first-child, .message.bot td:first-child { padding-left: 0; }
+        .message.bot th:last-child, .message.bot td:last-child { padding-right: 0; }
+        .message.bot tr:last-child td { border-bottom: none; }
+        /* 语法高亮：取 DeepSeek 浅色代码主题配色 */
+        .tok-com { color: #a0a1a7; font-style: italic; }
+        .tok-str { color: #50a14f; }
+        .tok-num { color: #986801; }
+        .tok-kw  { color: #a626a4; }
+        .tok-fn  { color: #4078f2; }
+        .tok-type { color: #c18401; }
+        .tok-attr { color: #986801; }
+        .tok-tag { color: #e45649; }
+        .tok-punc { color: #383a42; }
         .message.user .msg-img {
             max-width: 160px; max-height: 160px; border-radius: 6px;
             margin-bottom: 8px; display: block;
@@ -148,6 +227,251 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #d9d9d9; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #bfbfbf; }
+
+        /* ============================================================
+           知识库后台窗口
+           视觉参考 F:/raagent/ragent/frontend 的 admin 规范：
+           slate 中性色 + indigo→violet 渐变主按钮、白卡片、浅灰表头
+           ============================================================ */
+        .kb-entry {
+            width: 100%; padding: 10px 12px; background: #f2f3f5; border: none;
+            border-radius: 8px; font-size: 14px; color: #4e5969; cursor: pointer;
+            transition: background 0.2s; font-family: inherit;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .kb-entry:hover { background: #e5e6eb; }
+        .kb-entry-badge {
+            min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+            background: #4f46e5; color: #fff; font-size: 11px; font-weight: 600;
+            display: none; align-items: center; justify-content: center;
+        }
+        .kb-entry-badge.show { display: inline-flex; }
+
+        .kb-overlay {
+            position: fixed; inset: 0; z-index: 200; background: #f8fafc;
+            display: none; flex-direction: column;
+        }
+        .kb-overlay.show { display: flex; }
+
+        .kb-topbar {
+            flex-shrink: 0; display: flex; align-items: center; gap: 14px;
+            padding: 13px 28px; background: #ffffff; border-bottom: 1px solid #e2e8f0;
+        }
+        .kb-back {
+            width: 34px; height: 34px; flex-shrink: 0; border: 1px solid #e2e8f0;
+            background: #ffffff; border-radius: 9px; cursor: pointer; font-size: 16px;
+            color: #475569; display: flex; align-items: center; justify-content: center;
+            transition: background 0.15s;
+        }
+        .kb-back:hover { background: #f1f5f9; }
+        .kb-title { font-size: 20px; font-weight: 600; color: #0f172a; line-height: 1.35; }
+        .kb-subtitle { margin-top: 2px; font-size: 12.5px; color: #64748b; }
+        .kb-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+        .kb-input {
+            height: 36px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+            font-size: 13px; color: #0f172a; background: #fff; outline: none;
+            font-family: inherit; transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .kb-input::placeholder { color: #94a3b8; }
+        .kb-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
+
+        .kb-btn {
+            height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent;
+            font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit;
+            white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .kb-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .kb-btn-outline { background: #fff; border-color: #e2e8f0; color: #334155; }
+        .kb-btn-outline:hover:not(:disabled) { background: #f8fafc; }
+        .kb-btn-primary { background: linear-gradient(90deg, #4f46e5, #7c3aed); color: #fff; }
+        .kb-btn-primary:hover:not(:disabled) { background: linear-gradient(90deg, #4338ca, #6d28d9); }
+        .kb-btn-danger { background: #fff; border-color: #fecaca; color: #dc2626; }
+        .kb-btn-danger:hover:not(:disabled) { background: #fef2f2; }
+
+        .kb-body { flex: 1; overflow-y: auto; padding: 22px 28px 44px; }
+        .kb-body-inner { max-width: 1160px; margin: 0 auto; }
+
+        .kb-stat-grid {
+            display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px; margin-bottom: 18px;
+        }
+        .kb-stat-card {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            padding: 14px 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        .kb-stat-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .kb-stat-icon {
+            width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%;
+            background: #eef2ff; color: #4f46e5; display: flex;
+            align-items: center; justify-content: center; font-size: 16px;
+        }
+        .kb-stat-label { font-size: 12px; color: #64748b; }
+        .kb-stat-value { font-size: 22px; font-weight: 600; color: #0f172a; line-height: 1.3; }
+        .kb-stat-scope {
+            flex-shrink: 0; max-width: 92px; font-size: 10px; color: #94a3b8;
+            border: 1px solid #eef2f7; border-radius: 999px; padding: 2px 7px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        .kb-card {
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); overflow: hidden;
+        }
+        .kb-card-head {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 12px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap;
+        }
+        .kb-card-title { font-size: 15px; font-weight: 600; color: #0f172a; }
+        .kb-card-desc { margin-top: 3px; font-size: 12.5px; color: #64748b; }
+        .kb-card-tools { display: flex; align-items: center; gap: 8px; }
+        .kb-count { font-size: 12.5px; color: #64748b; }
+
+        .kb-table-wrap { overflow-x: auto; }
+        table.kb-table { width: 100%; border-collapse: collapse; font-size: 13px; color: #334155; }
+        .kb-table thead th {
+            height: 46px; padding: 0 16px; text-align: left; font-size: 12px;
+            font-weight: 600; color: #64748b; background: #f9fafb;
+            border-bottom: 1px solid #e9edf3; white-space: nowrap;
+        }
+        .kb-table thead th:first-child, .kb-table tbody td:first-child { padding-left: 20px; }
+        .kb-table thead th:last-child, .kb-table tbody td:last-child { padding-right: 20px; }
+        .kb-table tbody td { padding: 13px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .kb-table tbody tr { cursor: pointer; transition: background 0.12s; }
+        .kb-table tbody tr:hover { background: #f9fafb; }
+        .kb-table tbody tr:last-child td { border-bottom: none; }
+        .kb-num { font-variant-numeric: tabular-nums; color: #475569; }
+        .kb-doc-name {
+            border: none; background: none; padding: 0; font: inherit; font-weight: 500;
+            color: #4f46e5; cursor: pointer; text-align: left; max-width: 340px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
+        }
+        .kb-doc-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+        .kb-doc-meta { margin-top: 3px; font-size: 11.5px; color: #94a3b8; }
+        .kb-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+            font-weight: 500; background: #eef2ff; color: #4338ca; border: 1px solid #e0e7ff;
+        }
+        .kb-cell-actions { text-align: right; white-space: nowrap; }
+        .kb-row-btn {
+            border: 1px solid #e2e8f0; background: #fff; color: #334155; border-radius: 7px;
+            padding: 5px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+            transition: background 0.15s;
+        }
+        .kb-row-btn:hover { background: #f1f5f9; }
+        .kb-row-btn.danger { border-color: #fecaca; color: #dc2626; }
+        .kb-row-btn.danger:hover { background: #fef2f2; }
+        .kb-row-btn + .kb-row-btn { margin-left: 6px; }
+        .kb-empty { padding: 54px 20px; text-align: center; color: #94a3b8; font-size: 13px; line-height: 1.9; }
+        .kb-empty strong { display: block; margin-bottom: 4px; font-size: 14px; color: #475569; font-weight: 600; }
+
+        .kb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #94a3b8; margin-bottom: 14px; }
+        .kb-crumb button {
+            border: none; background: none; padding: 0; font: inherit;
+            color: #4f46e5; cursor: pointer;
+        }
+        .kb-crumb button:hover { text-decoration: underline; }
+        .kb-crumb span:last-child { color: #475569; font-weight: 500; }
+
+        .kb-chunk-list { display: flex; flex-direction: column; }
+        .kb-chunk { border-bottom: 1px solid #f1f5f9; padding: 13px 20px; }
+        .kb-chunk:last-child { border-bottom: none; }
+        .kb-chunk-head { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .kb-chunk-idx { font-size: 12px; color: #94a3b8; min-width: 34px; font-variant-numeric: tabular-nums; }
+        .kb-chunk-path {
+            flex: 1; min-width: 0; font-size: 12.5px; color: #475569;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .kb-chunk-chars { font-size: 11.5px; color: #94a3b8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .kb-chunk-chars.warn {
+            color: #b45309; background: #fffbeb; border: 1px solid #fde68a;
+            border-radius: 999px; padding: 1px 7px;
+        }
+        .kb-chunk-copy {
+            border: none; background: none; color: #94a3b8; cursor: pointer;
+            font-size: 12px; font-family: inherit; padding: 2px 4px; white-space: nowrap;
+        }
+        .kb-chunk-copy:hover { color: #4f46e5; }
+        .kb-chunk-body {
+            margin-top: 9px; font-size: 13px; line-height: 1.75; color: #334155;
+            white-space: pre-wrap; word-break: break-word;
+            background: #f8fafc; border: 1px solid #eef2f7; border-radius: 9px;
+            padding: 11px 13px; max-height: 84px; overflow: hidden;
+        }
+        .kb-chunk.expanded .kb-chunk-body { max-height: none; }
+        .kb-chunk-body mark { background: #fef08a; color: #0f172a; border-radius: 2px; }
+
+        .kb-mask {
+            position: fixed; inset: 0; z-index: 300; display: none;
+            align-items: center; justify-content: center; padding: 24px;
+            background: rgba(15, 23, 42, 0.45);
+        }
+        .kb-mask.show { display: flex; }
+        .kb-dialog {
+            width: 560px; max-width: 100%; max-height: 86vh; display: flex;
+            flex-direction: column; background: #fff; border-radius: 14px;
+            box-shadow: 0 24px 64px rgba(15, 23, 42, 0.24); overflow: hidden;
+        }
+        .kb-dialog-head { padding: 18px 22px 12px; }
+        .kb-dialog-title { font-size: 16px; font-weight: 600; color: #0f172a; }
+        .kb-dialog-desc { margin-top: 5px; font-size: 12.5px; color: #64748b; line-height: 1.6; }
+        .kb-dialog-body { padding: 0 22px; overflow-y: auto; }
+        .kb-dialog-foot {
+            display: flex; justify-content: flex-end; gap: 8px;
+            padding: 16px 22px; border-top: 1px solid #f1f5f9; margin-top: 16px;
+        }
+
+        .kb-dropzone {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 5px; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 26px 16px;
+            cursor: pointer; background: #fff; text-align: center; transition: 0.15s;
+        }
+        .kb-dropzone:hover, .kb-dropzone.dragging { border-color: #6366f1; background: #f5f3ff; }
+        .kb-dropzone-icon { font-size: 20px; color: #6366f1; }
+        .kb-dropzone-main { font-size: 13.5px; font-weight: 500; color: #334155; }
+        .kb-dropzone-hint { font-size: 11.5px; color: #94a3b8; }
+
+        .kb-queue { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+        .kb-queue-item { border: 1px solid #e2e8f0; border-radius: 9px; padding: 10px 12px; }
+        .kb-queue-top { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+        .kb-queue-name {
+            flex: 1; min-width: 0; color: #334155;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .kb-queue-status { font-size: 11.5px; color: #64748b; white-space: nowrap; }
+        .kb-queue-status.done { color: #059669; }
+        .kb-queue-status.error { color: #dc2626; }
+        .kb-progress { margin-top: 7px; height: 5px; border-radius: 3px; background: #f1f5f9; overflow: hidden; }
+        .kb-progress-bar {
+            height: 100%; width: 0; background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            transition: width 0.2s;
+        }
+        .kb-progress-bar.error { background: #ef4444; }
+        .kb-queue-msg { margin-top: 5px; font-size: 11.5px; color: #dc2626; line-height: 1.5; }
+
+        .kb-toast-wrap {
+            position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+            z-index: 400; display: flex; flex-direction: column; align-items: center;
+            gap: 8px; pointer-events: none;
+        }
+        .kb-toast {
+            padding: 9px 16px; border-radius: 9px; font-size: 13px; color: #fff;
+            background: #1e293b; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
+            animation: kbToastIn 0.2s ease;
+        }
+        .kb-toast.success { background: #059669; }
+        .kb-toast.error { background: #dc2626; }
+        @keyframes kbToastIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        @media (max-width: 980px) {
+            .kb-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .kb-topbar { flex-wrap: wrap; }
+            .kb-actions { width: 100%; margin-left: 0; }
+        }
     </style>
 </head>
 <body>
@@ -159,6 +483,10 @@
             <select id="modelSelect"></select>
         </div>
         <button class="new-chat-btn" onclick="clearChat()">+ 新会话</button>
+        <button class="kb-entry" onclick="kbOpen()" title="打开知识库管理">
+            <span>📚 知识库</span>
+            <span class="kb-entry-badge" id="kbBadge">0</span>
+        </button>
     </aside>
 
     <main class="main">
@@ -176,6 +504,111 @@
             </div>
         </div>
     </main>
+
+    <!-- ===================== 知识库后台窗口 ===================== -->
+    <div class="kb-overlay" id="kbOverlay">
+        <header class="kb-topbar">
+            <button class="kb-back" onclick="kbClose()" title="返回聊天">←</button>
+            <div>
+                <div class="kb-title" id="kbTitle">知识库管理</div>
+                <div class="kb-subtitle" id="kbSubtitle">管理文档与分块</div>
+            </div>
+            <div class="kb-actions">
+                <input class="kb-input" id="kbSearch" placeholder="搜索文档名称" style="width:200px"
+                       oninput="kbOnSearch(this.value)">
+                <button class="kb-btn kb-btn-outline" onclick="kbLoadDocs(true)">刷新</button>
+                <button class="kb-btn kb-btn-primary" onclick="kbOpenUpload()">上传文档</button>
+            </div>
+        </header>
+
+        <div class="kb-body">
+            <div class="kb-body-inner">
+                <!-- 视图一：文档列表 -->
+                <section id="kbListView">
+                    <div class="kb-stat-grid" id="kbStatGrid"></div>
+                    <div class="kb-card">
+                        <div class="kb-card-head">
+                            <div>
+                                <div class="kb-card-title">文档列表</div>
+                                <div class="kb-card-desc">上传后自动解析 → 分块 → 入库，数据来自 PostgreSQL</div>
+                            </div>
+                            <div class="kb-card-tools"><span class="kb-count" id="kbDocCount"></span></div>
+                        </div>
+                        <div class="kb-table-wrap" id="kbTableWrap"></div>
+                    </div>
+                </section>
+
+                <!-- 视图二：分块预览 -->
+                <section id="kbChunkView" style="display:none">
+                    <div class="kb-crumb">
+                        <button onclick="kbBackToList()">文档列表</button>
+                        <span>/</span>
+                        <span id="kbCrumbName"></span>
+                    </div>
+                    <div class="kb-stat-grid" id="kbChunkStats"></div>
+                    <div class="kb-card">
+                        <div class="kb-card-head">
+                            <div>
+                                <div class="kb-card-title">分块列表</div>
+                                <div class="kb-card-desc" id="kbChunkDesc"></div>
+                            </div>
+                            <div class="kb-card-tools">
+                                <input class="kb-input" id="kbChunkSearch" placeholder="过滤块内容或标题路径"
+                                       style="width:220px" oninput="kbRenderChunks()">
+                                <button class="kb-btn kb-btn-outline" id="kbToggleAllBtn"
+                                        onclick="kbToggleAllChunks()">全部展开</button>
+                            </div>
+                        </div>
+                        <div class="kb-chunk-list" id="kbChunkList"></div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上传对话框 -->
+    <div class="kb-mask" id="kbUploadMask">
+        <div class="kb-dialog">
+            <div class="kb-dialog-head">
+                <div class="kb-dialog-title">上传文档</div>
+                <div class="kb-dialog-desc">支持 .md / .txt / .csv / .pdf / .docx，单文件 ≤ 20MB，可一次选多个文件</div>
+            </div>
+            <div class="kb-dialog-body">
+                <div class="kb-dropzone" id="kbDropzone" onclick="kbPickFiles()"
+                     ondragover="event.preventDefault();this.classList.add('dragging')"
+                     ondragleave="this.classList.remove('dragging')"
+                     ondrop="kbOnDrop(event)">
+                    <div class="kb-dropzone-icon">⬆</div>
+                    <div class="kb-dropzone-main">拖拽文件到此处，或点击选择</div>
+                    <div class="kb-dropzone-hint">上传后自动解析并分块，完成后可在列表中查看分块</div>
+                </div>
+                <input type="file" id="kbFileInput" multiple
+                       accept=".md,.markdown,.txt,.csv,.pdf,.docx" style="display:none"
+                       onchange="kbOnFilesPicked(this)">
+                <div class="kb-queue" id="kbQueue"></div>
+            </div>
+            <div class="kb-dialog-foot">
+                <button class="kb-btn kb-btn-outline" onclick="kbCloseUpload()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认 -->
+    <div class="kb-mask" id="kbConfirmMask">
+        <div class="kb-dialog" style="width:420px">
+            <div class="kb-dialog-head">
+                <div class="kb-dialog-title" id="kbConfirmTitle">确认删除</div>
+                <div class="kb-dialog-desc" id="kbConfirmDesc"></div>
+            </div>
+            <div class="kb-dialog-foot">
+                <button class="kb-btn kb-btn-outline"
+                        onclick="kbEl('kbConfirmMask').classList.remove('show')">取消</button>
+                <button class="kb-btn kb-btn-danger" id="kbConfirmBtn">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="kb-toast-wrap" id="kbToastWrap"></div>
 
     <script>
         const chatArea = document.getElementById('chatArea');
@@ -248,73 +681,308 @@
 
         function scrollToBottom() { chatArea.scrollTop = chatArea.scrollHeight; }
 
-        /* ===== 新增功能②：轻量 Markdown 渲染 =====
-           安全原则：先把整段文本的 HTML 特殊字符全部转义，再只对白名单语法做替换。
-           因此模型输出 <img src=x onerror=alert(1)> 只会显示成文本，不会被执行。 */
+        /* ===== 机器人回复：轻量 Markdown 渲染（对齐 DeepSeek 网页端） =====
+           安全原则：文本先整体转义，再按白名单语法重建标签；代码高亮只包 span，
+           不增删字符，因此 code.textContent 与原文完全一致（复制不会串味）。 */
         function escapeHtml(s) {
-            return s.replace(/[&<>"']/g, c => ({
+            return String(s).replace(/[&<>"']/g, c => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
             })[c]);
         }
 
-        function inlineFormat(s) {
-            return s
-                .replace(/`([^`]+)`/g, '<code class="md-inline">$1</code>')      // 行内代码
-                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')              // **粗体**
-                .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');             // *斜体*
+        /* ---------- 语法高亮：按语言给一组「粘性正则 + 样式类」规则 ---------- */
+        const HL = {
+            c: [
+                { re: /\/\/[^\n]*|\/\*[\s\S]*?\*\//y, cls: 'tok-com' },
+                { re: /"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/y, cls: 'tok-str' },
+                { re: /\b(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)[fFdDlL]?\b/y, cls: 'tok-num' },
+                { re: /\b(?:abstract|assert|async|await|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|export|extends|final|finally|float|for|function|goto|if|implements|import|instanceof|int|interface|let|long|native|new|of|package|private|protected|public|return|short|static|super|switch|synchronized|this|throw|throws|transient|try|typeof|var|void|volatile|while|yield|null|true|false|undefined)\b/y, cls: 'tok-kw' },
+                { re: /\b[a-z_$][\w$]*(?=\s*\()/y, cls: 'tok-fn' },
+                { re: /\b[A-Z][A-Za-z0-9_]*\b/y, cls: 'tok-type' }
+            ],
+            py: [
+                { re: /#[^\n]*/y, cls: 'tok-com' },
+                { re: /"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/y, cls: 'tok-str' },
+                { re: /\b(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?)\b/y, cls: 'tok-num' },
+                { re: /\b(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|False|finally|for|from|global|if|import|in|is|lambda|None|nonlocal|not|or|pass|raise|return|self|True|try|while|with|yield)\b/y, cls: 'tok-kw' },
+                { re: /\b[a-z_]\w*(?=\s*\()/y, cls: 'tok-fn' },
+                { re: /\b[A-Z][A-Za-z0-9_]*\b/y, cls: 'tok-type' }
+            ],
+            json: [
+                { re: /"(?:\\.|[^"\\])*"(?=\s*:)/y, cls: 'tok-attr' },
+                { re: /"(?:\\.|[^"\\])*"/y, cls: 'tok-str' },
+                { re: /-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/y, cls: 'tok-num' },
+                { re: /\b(?:true|false|null)\b/y, cls: 'tok-kw' }
+            ],
+            sql: [
+                { re: /--[^\n]*|\/\*[\s\S]*?\*\//y, cls: 'tok-com' },
+                { re: /'(?:''|[^'])*'/y, cls: 'tok-str' },
+                { re: /\b(?:select|from|where|insert|into|values|update|set|delete|create|table|index|primary|key|foreign|references|join|left|right|inner|outer|on|group|by|order|having|limit|offset|as|and|or|not|null|default|constraint|unique|varchar|text|int|bigint|timestamp|boolean|serial)\b/iy, cls: 'tok-kw' },
+                { re: /\b\d+(?:\.\d+)?\b/y, cls: 'tok-num' }
+            ],
+            bash: [
+                { re: /#[^\n]*/y, cls: 'tok-com' },
+                { re: /"(?:\\.|[^"\\])*"|'[^']*'/y, cls: 'tok-str' },
+                { re: /\b(?:if|then|else|elif|fi|for|in|do|done|while|case|esac|function|echo|export|local|return|exit|cd|set|source)\b/y, cls: 'tok-kw' },
+                { re: /\$\{?[A-Za-z_]\w*\}?/y, cls: 'tok-attr' },
+                { re: /\b(?:curl|git|mvn|npm|node|java|docker|kubectl)\b/y, cls: 'tok-fn' }
+            ],
+            html: [
+                { re: /<!--[\s\S]*?-->/y, cls: 'tok-com' },
+                { re: /<\/?[a-zA-Z][\w:-]*/y, cls: 'tok-tag' },
+                { re: /[a-zA-Z-:]+(?==)/y, cls: 'tok-attr' },
+                { re: /"(?:[^"]*)"|'(?:[^']*)'/y, cls: 'tok-str' }
+            ],
+            css: [
+                { re: /\/\*[\s\S]*?\*\//y, cls: 'tok-com' },
+                { re: /@[a-zA-Z-]+/y, cls: 'tok-kw' },
+                { re: /[a-zA-Z-]+(?=\s*:)/y, cls: 'tok-attr' },
+                { re: /#[0-9a-fA-F]{3,8}\b/y, cls: 'tok-num' },
+                { re: /"(?:[^"]*)"|'(?:[^']*)'/y, cls: 'tok-str' }
+            ]
+        };
+        const HL_ALIAS = {
+            java: 'c', javascript: 'c', js: 'c', ts: 'c', typescript: 'c', jsx: 'c', tsx: 'c',
+            go: 'c', golang: 'c', rust: 'c', c: 'c', cpp: 'c', 'c++': 'c', cs: 'c', csharp: 'c',
+            kotlin: 'c', swift: 'c', scala: 'c', php: 'c', py: 'py', python: 'py',
+            json: 'json', jsonc: 'json', sql: 'sql', psql: 'sql',
+            sh: 'bash', bash: 'bash', shell: 'bash', zsh: 'bash', console: 'bash',
+            html: 'html', xml: 'html', vue: 'html', svg: 'html', css: 'css', scss: 'css', less: 'css'
+        };
+
+        function highlight(code, lang) {
+            const key = HL_ALIAS[String(lang || '').toLowerCase()];
+            const rules = key && HL[key];
+            if (!rules) return escapeHtml(code);          // 未知语言：只转义，不改样式
+            let out = '', plain = '', i = 0;
+            const flush = () => { if (plain) { out += escapeHtml(plain); plain = ''; } };
+            while (i < code.length) {
+                let hit = null;
+                for (const r of rules) {
+                    r.re.lastIndex = i;
+                    const m = r.re.exec(code);
+                    if (m && m.index === i && m[0]) { hit = { text: m[0], cls: r.cls }; break; }
+                }
+                if (hit) {
+                    flush();
+                    out += '<span class="' + hit.cls + '">' + escapeHtml(hit.text) + '</span>';
+                    i += hit.text.length;
+                } else {
+                    plain += code[i];
+                    i++;
+                }
+            }
+            flush();
+            return out;
+        }
+
+        /* ---------- 行内格式 ---------- */
+        function safeUrl(u) {
+            const v = String(u || '').trim().replace(/^&lt;|&gt;$/g, '');
+            return /^(https?:\/\/|mailto:|\/|#|\.\/)/i.test(v) ? v : null;
+        }
+
+        function inline(raw) {
+            if (!raw) return '';
+            let s = escapeHtml(raw);
+            const stash = [];
+            const keep = html => '\uE000' + (stash.push(html) - 1) + '\uE001';
+
+            // 行内代码（内部不再解析）
+            s = s.replace(/`([^`\n]+)`/g, (m, code) => keep('<code class="md-inline">' + code + '</code>'));
+            // 图片
+            s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g,
+                (m, alt, url) => { const u = safeUrl(url); return u ? keep('<img src="' + u + '" alt="' + alt + '">') : alt; });
+            // 链接
+            s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (m, label, url) => {
+                const u = safeUrl(url);
+                return u ? keep('<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + label + '</a>') : label;
+            });
+            // 裸链接
+            s = s.replace(/(^|[\s(])(https?:\/\/[^\s<\uE000]+)/g,
+                (m, pre, url) => pre + keep('<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>'));
+            // 粗体 / 斜体 / 删除线
+            s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+                 .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
+                 .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+                 .replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>')
+                 .replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
+            return s.replace(/\uE000(\d+)\uE001/g, (m, i) => stash[+i]);
+        }
+
+        /* ---------- 块级结构 ---------- */
+        function codeBlock(code, lang) {
+            const label = lang || 'text';
+            return '<div class="md-code">' +
+                '<div class="md-code-banner"><span>' + escapeHtml(label) + '</span>' +
+                '<button class="md-copy" type="button">复制</button></div>' +
+                '<pre><code>' + highlight(code, lang) + '</code></pre></div>';
+        }
+
+        const isTableSep = l => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(l);
+        const splitRow = row => {
+            let s = row.trim();
+            if (s.startsWith('|')) s = s.slice(1);
+            if (s.endsWith('|')) s = s.slice(0, -1);
+            return s.split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+        };
+
+        function parseTable(lines, start) {
+            const header = splitRow(lines[start]);
+            const aligns = splitRow(lines[start + 1]).map(s =>
+                /^:-+:$/.test(s) ? 'center' : /^-+:$/.test(s) ? 'right' : /^:-+$/.test(s) ? 'left' : '');
+            const style = k => aligns[k] ? ' style="text-align:' + aligns[k] + '"' : '';
+            let i = start + 2;
+            const rows = [];
+            while (i < lines.length && lines[i].trim() && lines[i].includes('|')) { rows.push(splitRow(lines[i])); i++; }
+            return {
+                html: '<div class="md-table-wrap"><table><thead><tr>' +
+                    header.map((c, k) => '<th' + style(k) + '>' + inline(c) + '</th>').join('') +
+                    '</tr></thead><tbody>' +
+                    rows.map(r => '<tr>' + header.map((_, k) => '<td' + style(k) + '>' + inline(r[k] || '') + '</td>').join('') + '</tr>').join('') +
+                    '</tbody></table></div>',
+                next: i
+            };
+        }
+
+        function parseList(lines, start) {
+            const out = [];
+            const stack = [];              // 当前打开的列表标签
+            let liOpen = false;
+            let i = start;
+            const closeLi = () => { if (liOpen) { out.push('</li>'); liOpen = false; } };
+            const closeLists = to => { while (stack.length > to) { closeLi(); out.push('</' + stack.pop() + '>'); } };
+
+            while (i < lines.length) {
+                const m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i]);
+                if (!m) break;
+                const indent = m[1].replace(/\t/g, '    ').length;
+                const tag = /^\d/.test(m[2]) ? 'ol' : 'ul';
+                const level = indent >= 2 ? 2 : 1;
+
+                if (level > stack.length) {
+                    out.push('<' + tag + '>');            // 嵌套在上一层 li 内部
+                    stack.push(tag);
+                } else {
+                    closeLists(level);
+                    closeLi();
+                    if (stack[stack.length - 1] !== tag) {
+                        out.push('</' + stack.pop() + '>');
+                        out.push('<' + tag + '>');
+                        stack.push(tag);
+                    }
+                }
+
+                const content = m[3];
+                const task = /^\[([ xX])\]\s+(.*)$/.exec(content);
+                if (task) {
+                    out.push('<li class="task-item"><input type="checkbox" disabled' +
+                        (task[1].toLowerCase() === 'x' ? ' checked' : '') + '>' + inline(task[2]));
+                } else {
+                    out.push('<li>' + inline(content));
+                }
+                liOpen = true;
+                i++;
+            }
+            closeLists(0);
+            return { html: out.join(''), next: i };
         }
 
         function renderMarkdown(src) {
             if (!src) return '';
-            const escaped = escapeHtml(src);
+            const lines = String(src).replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n');
+            const html = [];
+            let i = 0;
 
-            // 1) 先把 ``` 代码块整体抽走，避免里面的 * 或 ` 被行内规则误伤
-            const codes = [];
-            const text = escaped.replace(/```[a-zA-Z0-9+#-]*\n?([\s\S]*?)```/g, (m, body) => {
-                codes.push(body.replace(/\n$/, ''));
-                return '@@CODE' + (codes.length - 1) + '@@';
-            });
+            while (i < lines.length) {
+                const line = lines[i];
+                if (!line.trim()) { i++; continue; }
 
-            const out = [];
-            let listTag = null;
-            const closeList = () => { if (listTag) { out.push('</' + listTag + '>'); listTag = null; } };
-
-            for (const raw of text.split('\n')) {
-                const line = raw.trim();
-                if (!line) { closeList(); continue; }
-
-                let m;
-                if ((m = /^@@CODE(\d+)@@$/.exec(line))) {          // 代码块占位符：整块输出
-                    closeList(); out.push(line); continue;
-                }
-                if ((m = /^(#{1,4})\s+(.+)$/.exec(line))) {         // 标题（最多映射到 h5）
-                    closeList();
-                    const level = Math.min(m[1].length + 2, 5);
-                    out.push('<h' + level + ' class="md-h">' + inlineFormat(m[2]) + '</h' + level + '>');
+                // 围栏代码块
+                let m = /^\s*(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/.exec(line);
+                if (m) {
+                    const closeRe = new RegExp('^\\s*' + m[1][0] + '{3,}\\s*$');
+                    const lang = (m[2] || '').toLowerCase();
+                    const buf = [];
+                    i++;
+                    while (i < lines.length && !closeRe.test(lines[i])) { buf.push(lines[i]); i++; }
+                    if (i < lines.length) i++;            // 跳过结束围栏
+                    html.push(codeBlock(buf.join('\n'), lang));
                     continue;
                 }
-                if ((m = /^[-*+]\s+(.+)$/.exec(line))) {            // 无序列表
-                    if (listTag !== 'ul') { closeList(); out.push('<ul class="md-ul">'); listTag = 'ul'; }
-                    out.push('<li>' + inlineFormat(m[1]) + '</li>');
+
+                // 标题
+                m = /^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+                if (m) {
+                    const lv = m[1].length;
+                    html.push('<h' + lv + '>' + inline(m[2]) + '</h' + lv + '>');
+                    i++; continue;
+                }
+
+                // 分割线
+                if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) { html.push('<hr>'); i++; continue; }
+
+                // 引用
+                if (/^\s{0,3}>\s?/.test(line)) {
+                    const buf = [];
+                    while (i < lines.length && /^\s{0,3}>\s?/.test(lines[i])) {
+                        buf.push(lines[i].replace(/^\s{0,3}>\s?/, '')); i++;
+                    }
+                    html.push('<blockquote>' +
+                        buf.map(t => t.trim() ? '<p class="md-p">' + inline(t) + '</p>' : '').join('') +
+                        '</blockquote>');
                     continue;
                 }
-                if ((m = /^\d+[.)]\s+(.+)$/.exec(line))) {          // 有序列表
-                    if (listTag !== 'ol') { closeList(); out.push('<ol class="md-ol">'); listTag = 'ol'; }
-                    out.push('<li>' + inlineFormat(m[1]) + '</li>');
-                    continue;
+
+                // 表格
+                if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+                    const t = parseTable(lines, i);
+                    html.push(t.html); i = t.next; continue;
                 }
-                if ((m = /^&gt;\s?(.*)$/.exec(line))) {             // 引用（> 已被转义成 &gt;）
-                    closeList();
-                    out.push('<blockquote class="md-quote">' + inlineFormat(m[1]) + '</blockquote>');
-                    continue;
+
+                // 列表
+                if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) {
+                    const l = parseList(lines, i);
+                    html.push(l.html); i = l.next; continue;
                 }
-                closeList();
-                out.push('<p class="md-p">' + inlineFormat(line) + '</p>');
+
+                // 段落
+                const buf = [line.trim()];
+                i++;
+                while (i < lines.length) {
+                    const l = lines[i];
+                    if (!l.trim()) break;
+                    if (/^\s*(`{3,}|~{3,})/.test(l) || /^\s{0,3}#{1,6}\s/.test(l) ||
+                        /^\s{0,3}>\s?/.test(l) || /^\s*([-*+]|\d+[.)])\s+/.test(l) ||
+                        (l.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1]))) break;
+                    buf.push(l.trim()); i++;
+                }
+                html.push('<p class="md-p">' + buf.map(inline).join('<br>') + '</p>');
             }
-            closeList();
+            return '<div class="md-body">' + html.join('') + '</div>';
+        }
 
-            return out.join('').replace(/@@CODE(\d+)@@/g,
-                (m, i) => '<pre class="md-code"><code>' + codes[+i] + '</code></pre>');
+        function copyText(text) {
+            if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+            return new Promise((resolve, reject) => {
+                const ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); resolve(); } catch (e) { reject(e); }
+                document.body.removeChild(ta);
+            });
+        }
+
+        function bindCopyButtons(root) {
+            root.querySelectorAll('.md-copy').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const code = btn.closest('.md-code').querySelector('code').textContent;
+                    copyText(code).then(() => {
+                        btn.textContent = '已复制';
+                        setTimeout(() => { btn.textContent = '复制'; }, 1500);
+                    }).catch(() => { btn.textContent = '复制失败'; });
+                });
+            });
         }
 
         function appendMessage(text, cls, imageUrl) {
@@ -328,6 +996,7 @@
             if (text) {
                 if (cls.indexOf('bot') >= 0) {
                     div.innerHTML = renderMarkdown(text);       // 只有机器人回复走渲染
+                    bindCopyButtons(div);                       // 代码块「复制」按钮
                 } else {
                     div.appendChild(document.createTextNode(text));   // 用户输入永远当纯文本
                 }
@@ -388,6 +1057,567 @@
             chatArea.innerHTML = '';
             appendMessage('你好，我是知识问答助手，有什么可以帮你的吗？', 'bot');
         }
+
+        /* ============================================================
+           知识库后台窗口
+           复用后端已实现的 4 个接口：
+             POST   /api/rag/documents                 上传（multipart: file）
+             GET    /api/rag/documents                 文档列表
+             GET    /api/rag/documents/{docId}/chunks  分块预览
+             DELETE /api/rag/documents/{docId}         删除（块级联）
+           ============================================================ */
+        const KB_ALLOWED_EXT = ['.md', '.markdown', '.txt', '.csv', '.pdf', '.docx'];
+        const KB_MAX_BYTES = 20 * 1024 * 1024;   // 对齐 rag.max-file-size-mb
+        const KB_CHUNK_WARN = 1024;              // 对齐 rag.chunk.max-chars
+
+        const kbState = {
+            docs: [], keyword: '', loading: false,
+            doc: null, chunks: [], expandedAll: false, uploading: false
+        };
+        const kbQueue = [];
+        let kbQueueSeq = 0;
+        let kbQueueRunning = false;
+
+        function kbEl(id) { return document.getElementById(id); }
+
+        function kbToast(message, type) {
+            const el = document.createElement('div');
+            el.className = 'kb-toast' + (type ? ' ' + type : '');
+            el.textContent = message;
+            kbEl('kbToastWrap').appendChild(el);
+            setTimeout(() => {
+                el.style.transition = 'opacity .25s';
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 260);
+            }, 2600);
+        }
+
+        /* ---------- 通用格式化 ---------- */
+        function kbFormatSize(bytes) {
+            const n = Number(bytes) || 0;
+            if (n < 1024) return n + ' B';
+            const units = ['KB', 'MB', 'GB'];
+            let v = n / 1024, i = 0;
+            while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+            return (v >= 100 ? v.toFixed(0) : v.toFixed(1)) + ' ' + units[i];
+        }
+
+        function kbRelative(value) {
+            const t = typeof value === 'number' ? value : Date.parse(value || '');
+            if (isNaN(t)) return '—';
+            const diff = Date.now() - t;
+            if (diff < 60000) return '刚刚';
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+            if (diff < 2592000000) return Math.floor(diff / 86400000) + ' 天前';
+            const d = new Date(t), p = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+        }
+
+        function kbFileKind(name) {
+            const ext = String(name || '').slice(String(name || '').lastIndexOf('.')).toLowerCase();
+            const map = {
+                '.md': 'Markdown', '.markdown': 'Markdown', '.txt': 'Text',
+                '.csv': 'CSV', '.pdf': 'PDF', '.docx': 'Word'
+            };
+            return map[ext] || '未知';
+        }
+
+        function kbMimeLabel(mime) {
+            if (!mime) return '未知类型';
+            return String(mime).replace('application/', '').replace('text/', 'text/');
+        }
+
+        function kbHighlight(text, keyword) {
+            const safe = escapeHtml(text || '');
+            if (!keyword) return safe;
+            const pattern = escapeHtml(keyword).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            try {
+                return safe.replace(new RegExp(pattern, 'gi'), m => '<mark>' + m + '</mark>');
+            } catch (e) {
+                return safe;
+            }
+        }
+
+        /* ---------- 打开 / 关闭 ---------- */
+        function kbOpen() {
+            kbEl('kbOverlay').classList.add('show');
+            kbBackToList();
+            kbLoadDocs();
+        }
+
+        function kbClose() {
+            kbEl('kbOverlay').classList.remove('show');
+        }
+
+        function kbBackToList() {
+            kbEl('kbChunkView').style.display = 'none';
+            kbEl('kbListView').style.display = 'block';
+            kbEl('kbTitle').textContent = '知识库管理';
+            kbEl('kbSubtitle').textContent = '管理文档与分块';
+            kbState.doc = null;
+        }
+
+        /* ---------- 文档列表 ---------- */
+        async function kbLoadDocs(manual) {
+            if (kbState.loading) return;
+            kbState.loading = true;
+            kbEl('kbTableWrap').innerHTML = '<div class="kb-empty">加载中…</div>';
+            try {
+                const resp = await fetch('/api/rag/documents', { headers: { Accept: 'application/json' } });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(data.error || ('请求失败 HTTP ' + resp.status));
+                kbState.docs = Array.isArray(data.documents) ? data.documents : [];
+                kbRenderStats();
+                kbRenderTable();
+                kbUpdateBadge();
+                if (manual) kbToast('已刷新', 'success');
+            } catch (err) {
+                kbState.docs = [];
+                kbRenderStats();
+                kbEl('kbDocCount').textContent = '';
+                kbEl('kbTableWrap').innerHTML =
+                    '<div class="kb-empty"><strong>加载失败</strong>' + escapeHtml(err.message || '未知错误') +
+                    '<br>请确认 PostgreSQL 已启动，且应用已连上 ragdb</div>';
+                if (manual) kbToast(err.message || '加载失败', 'error');
+            } finally {
+                kbState.loading = false;
+            }
+        }
+
+        function kbOnSearch(value) {
+            kbState.keyword = String(value || '').trim();
+            kbRenderTable();
+        }
+
+        function kbFilteredDocs() {
+            const kw = kbState.keyword.toLowerCase();
+            if (!kw) return kbState.docs;
+            return kbState.docs.filter(d => String(d.name || '').toLowerCase().includes(kw));
+        }
+
+        function kbRenderStats() {
+            const docs = kbState.docs;
+            const chunkTotal = docs.reduce((s, d) => s + (Number(d.chunkCount) || 0), 0);
+            const sizeTotal = docs.reduce((s, d) => s + (Number(d.size) || 0), 0);
+            let latest = null;
+            docs.forEach(d => {
+                const t = Date.parse(d.ingestedAt || '');
+                if (!isNaN(t) && (!latest || t > latest.t)) latest = { t: t, name: d.name };
+            });
+
+            const cards = [
+                { icon: '📄', label: '文档数', value: docs.length.toLocaleString('zh-CN'), scope: '全部' },
+                { icon: '🧩', label: '分块总数', value: chunkTotal.toLocaleString('zh-CN'), scope: '全部' },
+                { icon: '💾', label: '占用体积', value: kbFormatSize(sizeTotal), scope: '原始文件' },
+                { icon: '🕒', label: '最近入库', value: latest ? kbRelative(latest.t) : '—', scope: latest ? latest.name : '暂无' }
+            ];
+
+            kbEl('kbStatGrid').innerHTML = cards.map(c => `
+                <div class="kb-stat-card">
+                    <div class="kb-stat-main">
+                        <div class="kb-stat-icon">${c.icon}</div>
+                        <div>
+                            <div class="kb-stat-label">${c.label}</div>
+                            <div class="kb-stat-value">${escapeHtml(c.value)}</div>
+                        </div>
+                    </div>
+                    <span class="kb-stat-scope" title="${escapeHtml(c.scope || '')}">${escapeHtml(c.scope || '')}</span>
+                </div>`).join('');
+        }
+
+        function kbRenderTable() {
+            const wrap = kbEl('kbTableWrap');
+            const list = kbFilteredDocs();
+
+            kbEl('kbDocCount').textContent = kbState.keyword
+                ? `${list.length} / ${kbState.docs.length} 篇`
+                : `${kbState.docs.length} 篇`;
+
+            if (kbState.docs.length === 0) {
+                wrap.innerHTML = '<div class="kb-empty"><strong>还没有文档</strong>' +
+                    '点击右上角「上传文档」，支持 .md / .txt / .csv / .pdf / .docx，单文件 ≤ 20MB</div>';
+                return;
+            }
+            if (list.length === 0) {
+                wrap.innerHTML = '<div class="kb-empty">没有匹配「' + escapeHtml(kbState.keyword) + '」的文档</div>';
+                return;
+            }
+
+            const rows = list.map(d => `
+                <tr data-id="${escapeHtml(d.docId)}">
+                    <td>
+                        <button class="kb-doc-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</button>
+                        <div class="kb-doc-meta">${escapeHtml(kbMimeLabel(d.mimeType))}</div>
+                    </td>
+                    <td><span class="kb-badge">${kbFileKind(d.name)}</span></td>
+                    <td class="kb-num">${Number(d.chunkCount) || 0}</td>
+                    <td class="kb-num">${kbFormatSize(d.size)}</td>
+                    <td class="kb-num">${escapeHtml(kbRelative(d.ingestedAt))}</td>
+                    <td class="kb-cell-actions">
+                        <button class="kb-row-btn" data-act="chunks">查看分块</button>
+                        <button class="kb-row-btn danger" data-act="delete">删除</button>
+                    </td>
+                </tr>`).join('');
+
+            wrap.innerHTML = `
+                <table class="kb-table">
+                    <thead>
+                        <tr>
+                            <th style="width:300px">文档</th>
+                            <th style="width:100px">类型</th>
+                            <th style="width:90px">分块数</th>
+                            <th style="width:100px">大小</th>
+                            <th style="width:130px">入库时间</th>
+                            <th style="width:170px;text-align:right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        }
+
+        function kbUpdateBadge() {
+            const badge = kbEl('kbBadge');
+            if (!badge) return;
+            const n = kbState.docs.length;
+            badge.textContent = n;
+            badge.classList.toggle('show', n > 0);
+        }
+
+        /* ---------- 分块预览 ---------- */
+        async function kbOpenChunks(docId) {
+            const doc = kbState.docs.find(d => String(d.docId) === String(docId));
+            if (!doc) return;
+
+            kbState.doc = doc;
+            kbState.chunks = [];
+            kbState.expandedAll = false;
+            kbEl('kbListView').style.display = 'none';
+            kbEl('kbChunkView').style.display = 'block';
+            kbEl('kbTitle').textContent = '分块预览';
+            kbEl('kbSubtitle').textContent = doc.name || '';
+            kbEl('kbCrumbName').textContent = doc.name || '';
+            kbEl('kbChunkSearch').value = '';
+            kbEl('kbToggleAllBtn').textContent = '全部展开';
+            kbEl('kbChunkDesc').textContent = '每块显示标题路径与字符数，超过 ' + KB_CHUNK_WARN + ' 字的块会标黄';
+            kbEl('kbChunkList').innerHTML = '<div class="kb-empty">加载中…</div>';
+
+            try {
+                const resp = await fetch('/api/rag/documents/' + encodeURIComponent(docId) + '/chunks');
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+                kbState.chunks = Array.isArray(data.chunks) ? data.chunks : [];
+                kbRenderChunkStats();
+                kbRenderChunks();
+            } catch (err) {
+                kbEl('kbChunkList').innerHTML =
+                    '<div class="kb-empty"><strong>加载分块失败</strong>' + escapeHtml(err.message || '') + '</div>';
+                kbRenderChunkStats();
+            }
+        }
+
+        function kbRenderChunkStats() {
+            const chunks = kbState.chunks;
+            const chars = chunks.map(c => Number(c.charCount) || String(c.content || '').length);
+            const sum = chars.reduce((a, b) => a + b, 0);
+            const max = chars.length ? Math.max.apply(null, chars) : 0;
+            const over = chars.filter(c => c > KB_CHUNK_WARN).length;
+
+            const cards = [
+                { icon: '🧩', label: '总块数', value: String(chunks.length), scope: '本文件' },
+                { icon: '📏', label: '平均字符', value: chunks.length ? String(Math.round(sum / chunks.length)) : '0', scope: 'per chunk' },
+                { icon: '📈', label: '最大块', value: String(max), scope: '字符' },
+                { icon: '⚠️', label: '超预算块', value: String(over), scope: '>' + KB_CHUNK_WARN }
+            ];
+
+            kbEl('kbChunkStats').innerHTML = cards.map(c => `
+                <div class="kb-stat-card">
+                    <div class="kb-stat-main">
+                        <div class="kb-stat-icon">${c.icon}</div>
+                        <div>
+                            <div class="kb-stat-label">${c.label}</div>
+                            <div class="kb-stat-value">${escapeHtml(c.value)}</div>
+                        </div>
+                    </div>
+                    <span class="kb-stat-scope">${escapeHtml(c.scope)}</span>
+                </div>`).join('');
+        }
+
+        function kbRenderChunks() {
+            const box = kbEl('kbChunkList');
+            if (!kbState.chunks.length) {
+                box.innerHTML = '<div class="kb-empty"><strong>没有分块</strong>该文件解析后没有产出任何内容块</div>';
+                return;
+            }
+
+            const kw = (kbEl('kbChunkSearch').value || '').trim();
+            const lower = kw.toLowerCase();
+            const visible = kbState.chunks.filter(c => {
+                if (!kw) return true;
+                const path = (c.outlinePath || []).join(' › ');
+                return String(c.content || '').toLowerCase().includes(lower) || path.toLowerCase().includes(lower);
+            });
+
+            if (!visible.length) {
+                box.innerHTML = '<div class="kb-empty">没有包含「' + escapeHtml(kw) + '」的分块</div>';
+                return;
+            }
+
+            box.innerHTML = visible.map(c => {
+                const path = (c.outlinePath && c.outlinePath.length) ? c.outlinePath.join(' › ') : '（无标题路径）';
+                const chars = Number(c.charCount) || String(c.content || '').length;
+                const warn = chars > KB_CHUNK_WARN ? ' warn' : '';
+                const body = kw ? kbHighlight(c.content || '', kw) : escapeHtml(c.content || '');
+                return `
+                    <div class="kb-chunk${kbState.expandedAll ? ' expanded' : ''}" data-chunk-id="${escapeHtml(c.chunkId || '')}">
+                        <div class="kb-chunk-head" onclick="kbToggleChunk(this)">
+                            <span class="kb-chunk-idx">#${c.index}</span>
+                            <span class="kb-chunk-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span>
+                            <span class="kb-chunk-chars${warn}">${chars} 字</span>
+                            <button class="kb-chunk-copy" onclick="event.stopPropagation();kbCopyChunk(this)">复制</button>
+                        </div>
+                        <div class="kb-chunk-body">${body}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        function kbToggleChunk(head) {
+            const item = head.closest('.kb-chunk');
+            if (item) item.classList.toggle('expanded');
+        }
+
+        function kbToggleAllChunks() {
+            kbState.expandedAll = !kbState.expandedAll;
+            kbEl('kbToggleAllBtn').textContent = kbState.expandedAll ? '全部收起' : '全部展开';
+            kbRenderChunks();
+        }
+
+        function kbCopyChunk(btn) {
+            const holder = btn.closest('.kb-chunk');
+            const id = holder ? holder.getAttribute('data-chunk-id') : '';
+            const chunk = kbState.chunks.find(c => String(c.chunkId) === id);
+            if (!chunk) return;
+            copyText(chunk.content || '').then(() => {
+                const old = btn.textContent;
+                btn.textContent = '已复制';
+                setTimeout(() => { btn.textContent = old; }, 1400);
+            }).catch(() => kbToast('复制失败', 'error'));
+        }
+
+        /* ---------- 删除 ---------- */
+        function kbAskDelete(docId) {
+            const doc = kbState.docs.find(d => String(d.docId) === String(docId));
+            if (!doc) return;
+            kbEl('kbConfirmTitle').textContent = '确认删除文档？';
+            kbEl('kbConfirmDesc').innerHTML = '将删除 <strong>' + escapeHtml(doc.name) + '</strong> 及其 '
+                + (Number(doc.chunkCount) || 0) + ' 个分块，操作不可恢复。';
+            const btn = kbEl('kbConfirmBtn');
+            btn.disabled = false;
+            btn.onclick = () => kbDeleteDoc(docId);
+            kbEl('kbConfirmMask').classList.add('show');
+        }
+
+        async function kbDeleteDoc(docId) {
+            const btn = kbEl('kbConfirmBtn');
+            btn.disabled = true;
+            btn.textContent = '删除中…';
+            try {
+                const resp = await fetch('/api/rag/documents/' + encodeURIComponent(docId), { method: 'DELETE' });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+                kbEl('kbConfirmMask').classList.remove('show');
+                kbToast('已删除', 'success');
+                if (kbState.doc && String(kbState.doc.docId) === String(docId)) kbBackToList();
+                await kbLoadDocs();
+            } catch (err) {
+                kbToast(err.message || '删除失败', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '删除';
+            }
+        }
+
+        /* ---------- 上传 ---------- */
+        function kbOpenUpload() {
+            kbEl('kbUploadMask').classList.add('show');
+            kbRenderQueue();
+        }
+
+        function kbCloseUpload() {
+            if (kbQueueRunning) { kbToast('还有文件在上传，请稍候', 'error'); return; }
+            kbEl('kbUploadMask').classList.remove('show');
+        }
+
+        function kbPickFiles() { kbEl('kbFileInput').click(); }
+
+        function kbOnFilesPicked(input) {
+            kbEnqueue(Array.prototype.slice.call(input.files || []));
+            input.value = '';
+        }
+
+        function kbOnDrop(event) {
+            event.preventDefault();
+            kbEl('kbDropzone').classList.remove('dragging');
+            kbEnqueue(Array.prototype.slice.call(event.dataTransfer.files || []));
+        }
+
+        function kbEnqueue(files) {
+            if (!files.length) return;
+            let accepted = 0;
+            files.forEach(file => {
+                const name = file.name || 'unnamed';
+                const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+                let message = '';
+                if (KB_ALLOWED_EXT.indexOf(ext) < 0) {
+                    message = '不支持的格式 ' + ext + '，仅支持 ' + KB_ALLOWED_EXT.join(' / ');
+                } else if (!file.size) {
+                    message = '文件为空';
+                } else if (file.size > KB_MAX_BYTES) {
+                    message = '超过 20MB 限制（' + kbFormatSize(file.size) + '）';
+                }
+                kbQueue.push({
+                    id: ++kbQueueSeq, file: file, name: name,
+                    progress: 0, status: message ? 'error' : 'queued', message: message, detail: ''
+                });
+                if (!message) accepted++;
+            });
+            kbRenderQueue();
+            if (accepted) kbDrainQueue();
+        }
+
+        async function kbDrainQueue() {
+            if (kbQueueRunning) return;
+            kbQueueRunning = true;
+            kbState.uploading = true;
+            for (let i = 0; i < kbQueue.length; i++) {
+                if (kbQueue[i].status !== 'queued') continue;
+                kbQueue[i].status = 'uploading';
+                kbRenderQueue();
+                await kbUploadOne(kbQueue[i]);
+            }
+            kbQueueRunning = false;
+            kbState.uploading = false;
+
+            const done = kbQueue.filter(i => i.status === 'done').length;
+            const failed = kbQueue.filter(i => i.status === 'error').length;
+            if (done) {
+                kbToast('上传完成：成功 ' + done + ' 个' + (failed ? '，失败 ' + failed + ' 个' : ''), 'success');
+                await kbLoadDocs();
+            } else if (failed) {
+                kbToast('上传失败，请查看错误原因', 'error');
+            }
+        }
+
+        function kbUploadOne(item) {
+            return new Promise(resolve => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/rag/documents');
+                xhr.upload.onprogress = e => {
+                    if (!e.lengthComputable) return;
+                    item.progress = Math.min(99, Math.round(e.loaded / e.total * 100));
+                    kbRenderQueue();
+                };
+                xhr.onload = () => {
+                    let data = {};
+                    try { data = JSON.parse(xhr.responseText || '{}'); } catch (_) { /* 忽略 */ }
+                    item.progress = 100;
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        item.status = 'done';
+                        if (data.skipped) {
+                            item.detail = '内容未变化，已跳过（复用 ' + (Number(data.chunkCount) || 0) + ' 个分块）';
+                        } else {
+                            const t = data.timings || {};
+                            item.detail = (Number(data.chunkCount) || 0) + ' 个分块 · 解析 '
+                                + (t.parseMs || 0) + 'ms / 分块 ' + (t.chunkMs || 0)
+                                + 'ms / 入库 ' + (t.indexMs || 0) + 'ms';
+                        }
+                    } else {
+                        item.status = 'error';
+                        item.message = data.error || ('HTTP ' + xhr.status);
+                    }
+                    kbRenderQueue();
+                    resolve();
+                };
+                xhr.onerror = () => {
+                    item.status = 'error';
+                    item.progress = 100;
+                    item.message = '网络错误，上传中断';
+                    kbRenderQueue();
+                    resolve();
+                };
+                const fd = new FormData();
+                fd.append('file', item.file);
+                xhr.send(fd);
+            });
+        }
+
+        function kbStatusText(item) {
+            if (item.status === 'queued') return '排队中';
+            if (item.status === 'uploading') return item.progress < 100 ? ('上传 ' + item.progress + '%') : '解析中…';
+            if (item.status === 'done') return '完成';
+            return '失败';
+        }
+
+        function kbRenderQueue() {
+            const box = kbEl('kbQueue');
+            if (!kbQueue.length) { box.innerHTML = ''; return; }
+            box.innerHTML = kbQueue.map(item => {
+                const pct = item.status === 'done' ? 100 : item.progress;
+                const statusCls = item.status === 'done' ? ' done' : (item.status === 'error' ? ' error' : '');
+                const barCls = item.status === 'error' ? ' error' : '';
+                const detail = item.status === 'done' && item.detail
+                    ? '<div class="kb-queue-msg" style="color:#059669">' + escapeHtml(item.detail) + '</div>' : '';
+                const err = item.status === 'error' && item.message
+                    ? '<div class="kb-queue-msg">' + escapeHtml(item.message) + '</div>' : '';
+                return `
+                    <div class="kb-queue-item">
+                        <div class="kb-queue-top">
+                            <span class="kb-queue-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+                            <span class="kb-queue-status${statusCls}">${escapeHtml(kbStatusText(item))}</span>
+                        </div>
+                        <div class="kb-progress"><div class="kb-progress-bar${barCls}" style="width:${pct}%"></div></div>
+                        ${detail}${err}
+                    </div>`;
+            }).join('');
+        }
+
+        /* ---------- 行内操作（事件委托） ---------- */
+        kbEl('kbTableWrap').addEventListener('click', function (e) {
+            const row = e.target.closest('tr[data-id]');
+            if (!row) return;
+            const docId = row.getAttribute('data-id');
+            const action = e.target.closest('[data-act]');
+            if (action && action.getAttribute('data-act') === 'delete') {
+                kbAskDelete(docId);
+                return;
+            }
+            kbOpenChunks(docId);
+        });
+
+        /* ---------- Esc 逐层关闭 ---------- */
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            if (kbEl('kbConfirmMask').classList.contains('show')) {
+                kbEl('kbConfirmMask').classList.remove('show');
+                return;
+            }
+            if (kbEl('kbUploadMask').classList.contains('show')) {
+                kbCloseUpload();
+                return;
+            }
+            if (kbEl('kbOverlay').classList.contains('show')) kbClose();
+        });
+
+        /* ---------- 首屏静默拉一次，用于侧边栏徽标 ---------- */
+        setTimeout(function () {
+            fetch('/api/rag/documents', { headers: { Accept: 'application/json' } })
+                .then(r => r.json())
+                .then(d => {
+                    kbState.docs = Array.isArray(d.documents) ? d.documents : [];
+                    kbUpdateBadge();
+                })
+                .catch(() => { /* 数据库没起也不影响聊天 */ });
+        }, 800);
     </script>
 </body>
 </html>
