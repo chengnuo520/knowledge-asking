@@ -1,0 +1,8 @@
+{
+  "app": "agentscope-chat",
+  "note": "此文件用于测试不支持的扩展名，预期后端返回 400",
+  "chunk": {
+    "maxChars": 1024,
+    "overlapChars": 128
+  }
+}

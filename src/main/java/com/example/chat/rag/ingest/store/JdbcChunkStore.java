@@ -16,6 +16,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,6 +64,23 @@ public class JdbcChunkStore implements ChunkStore {
 
     private static final String DELETE_DOCUMENT_SQL =
             "DELETE FROM rag_documents WHERE doc_id = ?";
+
+    private static final String SELECT_CHUNK_BY_ID_SQL =
+            "SELECT chunk_id, doc_id, chunk_index, content, embedding_text, outline_path, source_file "
+                    + "FROM rag_chunks WHERE doc_id = ? AND chunk_id = ?";
+
+    /** 正文被改写后旧向量必然失真，一并置空，等后续嵌入链路重新回填 */
+    private static final String UPDATE_CHUNK_SQL =
+            "UPDATE rag_chunks SET content = ?, embedding_text = ?, embedding = NULL "
+                    + "WHERE doc_id = ? AND chunk_id = ?";
+
+    private static final String MAX_CHUNK_INDEX_SQL =
+            "SELECT COALESCE(MAX(chunk_index), -1) FROM rag_chunks WHERE doc_id = ?";
+
+    /** chunk_count 是冗余列，任何块级增删后都必须重算，否则列表页数字对不上 */
+    private static final String SYNC_CHUNK_COUNT_SQL =
+            "UPDATE rag_documents SET chunk_count = "
+                    + "(SELECT COUNT(*) FROM rag_chunks WHERE doc_id = ?) WHERE doc_id = ?";
 
     private static final RowMapper<DocumentRecord> DOCUMENT_MAPPER = (rs, rowNum) -> new DocumentRecord(
             rs.getString("doc_id"),
@@ -143,6 +161,88 @@ public class JdbcChunkStore implements ChunkStore {
     private Optional<DocumentRecord> queryOne(String sql, Object... args) {
         List<DocumentRecord> rows = jdbcTemplate.query(sql, DOCUMENT_MAPPER, args);
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    @Override
+    public Optional<Chunk> findChunk(String docId, String chunkId) {
+        UUID docUuid = parseUuid(docId);
+        UUID chunkUuid = parseUuid(chunkId);
+        if (docUuid == null || chunkUuid == null) {
+            return Optional.empty();
+        }
+        List<Chunk> rows = jdbcTemplate.query(SELECT_CHUNK_BY_ID_SQL, CHUNK_MAPPER, docUuid, chunkUuid);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    @Override
+    @Transactional
+    public boolean updateChunk(String docId, String chunkId, String content, String embeddingText) {
+        UUID docUuid = parseUuid(docId);
+        UUID chunkUuid = parseUuid(chunkId);
+        if (docUuid == null || chunkUuid == null) {
+            return false;
+        }
+        return jdbcTemplate.update(UPDATE_CHUNK_SQL, content, embeddingText, docUuid, chunkUuid) > 0;
+    }
+
+    @Override
+    @Transactional
+    public int deleteChunks(String docId, List<String> chunkIds) {
+        UUID docUuid = parseUuid(docId);
+        if (docUuid == null || chunkIds == null || chunkIds.isEmpty()) {
+            return 0;
+        }
+        List<UUID> ids = new ArrayList<>(chunkIds.size());
+        for (String chunkId : chunkIds) {
+            UUID parsed = parseUuid(chunkId);
+            if (parsed != null) {
+                ids.add(parsed);
+            }
+        }
+        if (ids.isEmpty()) {
+            return 0;
+        }
+
+        String placeholders = String.join(",", Collections.nCopies(ids.size(), "?"));
+        String sql = "DELETE FROM rag_chunks WHERE doc_id = ? AND chunk_id IN (" + placeholders + ")";
+        Object[] args = new Object[ids.size() + 1];
+        args[0] = docUuid;
+        for (int i = 0; i < ids.size(); i++) {
+            args[i + 1] = ids.get(i);
+        }
+
+        int deleted = jdbcTemplate.update(sql, args);
+        if (deleted > 0) {
+            syncChunkCount(docUuid);
+        }
+        return deleted;
+    }
+
+    @Override
+    @Transactional
+    public Chunk appendChunk(String docId, String content, String embeddingText,
+                             List<String> outlinePath, String sourceFile) {
+        UUID docUuid = parseUuid(docId);
+        if (docUuid == null) {
+            throw new IllegalArgumentException("文档 ID 非法: " + docId);
+        }
+        Integer maxIndex = jdbcTemplate.queryForObject(MAX_CHUNK_INDEX_SQL, Integer.class, docUuid);
+        int nextIndex = (maxIndex == null ? -1 : maxIndex) + 1;
+
+        Chunk chunk = new Chunk(
+                UUID.randomUUID().toString(),
+                nextIndex,
+                content,
+                embeddingText,
+                new ChunkMetadata(outlinePath, sourceFile, Map.of()));
+
+        insertChunks(docUuid, sourceFile, List.of(chunk));
+        syncChunkCount(docUuid);
+        return chunk;
+    }
+
+    private void syncChunkCount(UUID docUuid) {
+        jdbcTemplate.update(SYNC_CHUNK_COUNT_SQL, docUuid, docUuid);
     }
 
     /**

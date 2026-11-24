@@ -38,6 +38,14 @@ public final class ChunkAssembler {
         return chunks;
     }
 
+    /**
+     * 编辑场景复用：内容被手工改写后，按同一规则重建 embeddingText
+     * （只补 content 里缺失的章节前缀，再拼正文），保证与初始分块口径一致。
+     */
+    public static String composeEmbeddingText(List<String> outlinePath, String content) {
+        return composeEmbeddingText(outlinePath, content, content);
+    }
+
     private static String composeEmbeddingText(List<String> outlinePath, String body, String content) {
         StringBuilder sb = new StringBuilder();
         appendIfPresent(sb, missingOutlinePrefix(outlinePath, content));

@@ -32,9 +32,10 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class IngestionService {
 
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("md", "txt", "csv", "pdf", "docx");
+    /** 与前端 accept 保持一致：.markdown 也必须放行，否则前端能选、后端却打回 */
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("md", "markdown", "txt", "csv", "pdf", "docx");
 
-    private static final String SUPPORTED_EXTENSIONS = ".md/.txt/.csv/.pdf/.docx";
+    private static final String SUPPORTED_EXTENSIONS = ".md/.markdown/.txt/.csv/.pdf/.docx";
 
     private static final String DEFAULT_FILENAME = "upload.bin";
 
