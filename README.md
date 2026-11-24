@@ -48,11 +48,15 @@
 ├── docs/                           # 功能点学习文档
 │   ├── 01-模型切换机制.md
 │   ├── 02-图片识别Vision.md
-│   ├── 02-为什么用springai.md
 │   ├── 03-新增功能-接口限流.md        # 新增功能的实现教程 + 验收记录
-│   ├── 04-新增功能-回复Markdown渲染.md
-│   ├── 05-新增功能-Markdown渲染对齐DeepSeek.md   # 排版规范 + 逐步复现 + 前后对比
-│   └── evidence-复现/                # 上述功能的截图、日志、脚本、桩服务
+│   ├── 04-文档处理链路.md
+│   ├── 04-新增功能-Markdown渲染对齐DeepSeek.md   # 排版规范 + 逐步复现 + 前后对比
+│   ├── 05-功能点-知识库文档增删改查.md
+│   ├── 06-功能点-知识库分块选择与预览.md
+│   ├── 07-功能点-登录鉴权与会话.md      # 账号入库 + BCrypt + token + 路由守卫
+│   ├── 08-功能点-图片验证码.md          # 理论 / 实践 / 面试深挖题
+│   ├── 技术栈（基础知识补充）/          # Tika、PostgreSQL 选型、分块策略选型
+│   └── evidence-*/                     # 各功能的截图、日志、复现脚本
 └── src/main/
     ├── java/com/example/chat/
     │   ├── DemoApplication.java       # Spring Boot 主入口
@@ -233,4 +237,4 @@ curl.exe -F "file=@src/test/resources/docs/保修政策.md" http://localhost:808
 - AgentScope 不参与 Spring Boot 自动装配，`OpenAIChatModel` 全部在 `ChatModelFactory` 里通过显式 builder 创建，因此多模型动态切换不需要 exclude 任何自动配置类。
 - base-url 必须指向可用的 OpenAI 兼容端点（AgentScope 不会自动补 `/v1`），每个模型的 `baseUrl` + `apiKey` + `modelName` 都写在 `chat.models` 里。
 - 每次问答创建 `ReActAgent`（用 try-with-resources 关闭），用户消息封装成 `Msg` 后调用 `agent.call(msg).block()` 取回复；图片消息用 `DataBlock` + `Base64Source` 传递 Base64 数据。
-- 本项目仅保证**基础问答 + 图片识别 + 文档解析/分块/入库**能力，不含生产环境优化、权限校验、多轮对话记忆、流式输出等扩展功能；文档链路本轮不调用嵌入、不写向量、不提供检索。
+- 本项目仅保证**基础问答 + 图片识别 + 文档解析/分块/入库 + 基础登录鉴权**能力，不含生产环境优化、多轮对话记忆、流式输出等扩展功能；文档链路本轮不调用嵌入、不写向量、不提供检索。登录鉴权为单实例内存态会话 + 路径级角色控制，不含按数据归属的细粒度越权防护（见 `docs/07`）。
