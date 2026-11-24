@@ -36,3 +36,13 @@ logs/
 
 # 文档生成流水线产物（docx/html 中间件）
 output/
+
+# 前端构建工具链（mvn -Pwith-frontend 首次下载的 node）
+.frontend-tools/
+
+# Vue 构建产物（由 frontend/ 生成）
+src/main/resources/static/app/
+
+# 前端依赖（体积大且可复现，不提交）
+frontend/node_modules/
+frontend/dist/
