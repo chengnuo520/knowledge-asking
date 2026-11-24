@@ -23,3 +23,30 @@ CREATE TABLE IF NOT EXISTS rag_chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rag_chunks_doc_id ON rag_chunks(doc_id);
+
+-- ===== 账号与会话（功能点三） =====
+-- role 用 TEXT 而不是枚举类型：加角色不用改类型，代价是应用层要校验取值
+CREATE TABLE IF NOT EXISTS app_users (
+    user_id       UUID PRIMARY KEY,
+    username      TEXT NOT NULL UNIQUE,          -- 登录名，唯一
+    password_hash TEXT NOT NULL,                 -- BCrypt，永不存明文
+    role          TEXT NOT NULL,                 -- ADMIN / USER
+    display_name  TEXT NOT NULL,
+    enabled       BOOLEAN NOT NULL DEFAULT TRUE,
+    must_change_password BOOLEAN NOT NULL DEFAULT FALSE,  -- 种子账号首次登录必须改密
+    created_at    TIMESTAMPTZ NOT NULL,
+    last_login_at TIMESTAMPTZ
+);
+
+-- 会话表存的是 token 的 SHA-256，不存 token 本身：
+-- 库被读走也无法拿来冒充登录
+CREATE TABLE IF NOT EXISTS app_sessions (
+    token_hash   TEXT PRIMARY KEY,
+    user_id      UUID NOT NULL REFERENCES app_users(user_id) ON DELETE CASCADE,
+    created_at   TIMESTAMPTZ NOT NULL,
+    last_seen_at TIMESTAMPTZ NOT NULL,
+    expires_at   TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_sessions_user ON app_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_app_sessions_expires ON app_sessions(expires_at);

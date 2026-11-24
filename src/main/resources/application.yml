@@ -5,7 +5,10 @@ spring:
   application:
     name: agentscope-chat
   datasource:
-    url: ${RAG_DB_URL:jdbc:postgresql://localhost:5432/ragdb}
+    # 本地开发用 docker-compose.kb.yml 起的独占实例（5434 / ragdb_kb），
+    # 避免与本机其它项目的 PostgreSQL 抢 5432 与库名。
+    # 容器化部署由 docker-compose.yml 通过 RAG_DB_URL 覆盖为 postgres:5432。
+    url: ${RAG_DB_URL:jdbc:postgresql://localhost:5434/ragdb_kb}
     username: ${RAG_DB_USERNAME:postgres}
     password: ${RAG_DB_PASSWORD:postgres}
     hikari:
@@ -55,3 +58,23 @@ chat:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       model-name: "modelscope.cn/Qwen/Qwen3-VL-4B-Instruct-GGUF:latest"
       temperature: 0.7
+
+# 鉴权（功能点三）
+# 账号存在数据库 app_users 表，这里只配「库里没账号时种什么」和「token 怎么校验」
+app:
+  auth:
+    token-header: token
+    session-hours: 24
+    idle-renew-minutes: 5
+    registration-enabled: ${AUTH_REGISTRATION_ENABLED:true}
+    # 首次启动时自动创建的两个账号（之后改密码直接 UPDATE app_users 表）
+    admin-username: admin
+    admin-init-password: ${ADMIN_INIT_PASSWORD:admin123}
+    seed-demo-user: true
+    demo-username: user
+    demo-init-password: ${DEMO_INIT_PASSWORD:user12345}
+    max-failed-attempts: 5
+    lock-minutes: 15
+    # 登录图片验证码
+    captcha-enabled: ${AUTH_CAPTCHA_ENABLED:true}
+    captcha-ttl-seconds: 120

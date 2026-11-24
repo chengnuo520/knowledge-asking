@@ -1,0 +1,46 @@
+# 本地开发专用：为本项目独占的 PostgreSQL + pgvector 实例
+#
+# 为什么不复用主 docker-compose.yml 的 postgres：
+#   那个映射 5432，和本机其它项目的 PG 撞端口；容器名/卷也叫 rag-*，
+#   一旦别的项目也起 postgres，库名、schema 会互相覆盖。
+#   这里用独立容器名、独立卷、5434 端口、独立库名，互不干扰。
+#
+# 启动：docker compose -f docker-compose.kb.yml up -d
+# 连接：jdbc:postgresql://localhost:5434/ragdb_kb
+# 停止：docker compose -f docker-compose.kb.yml down          （保留数据）
+# 清空：docker compose -f docker-compose.kb.yml down -v       （连数据卷一起删）
+
+name: agentscope-kb
+
+services:
+  kb-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agentscope-kb-pg
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5434:5432"   # 只监听回环，避免局域网内被别的机器连
+    environment:
+      - POSTGRES_DB=${KB_DB_NAME:-ragdb_kb}
+      - POSTGRES_USER=${KB_DB_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${KB_DB_PASSWORD:-postgres}
+    volumes:
+      - agentscope-kb-pgdata:/var/lib/postgresql/data
+    networks:
+      - agentscope-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KB_DB_USERNAME:-postgres} -d ${KB_DB_NAME:-ragdb_kb}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  agentscope-kb-pgdata:
+    # 显式固定卷名：compose 项目改名后默认会带新前缀并新建空卷，
+    # 这里指向最初创建的卷，数据不会丢
+    name: codingdemo_agentscope-kb-pgdata
+
+networks:
+  # 固定名字：应用容器（另一个 compose 项目）以 external 方式接入，
+  # 靠容器名 agentscope-kb-pg 直连，不走宿主机端口
+  agentscope-net:
+    name: agentscope-net
