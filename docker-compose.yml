@@ -1,32 +1,39 @@
-services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: rag-postgres
-    restart: unless-stopped
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_DB=${RAG_DB_NAME:-ragdb}
-      - POSTGRES_USER=${RAG_DB_USERNAME:-postgres}
-      - POSTGRES_PASSWORD=${RAG_DB_PASSWORD:-postgres}
-    volumes:
-      - rag-postgres-data:/var/lib/postgresql/data
+name: agentscope-app
 
+services:
+  # 应用容器：只跑 Spring Boot，数据库是另一套 compose（docker-compose.kb.yml）里的 PG
+  #
+  # 为什么不在这个文件里自带 postgres：
+  #   1) 本机其它项目也起了 PG，自带 postgres 会抢 5432
+  #   2) 数据库要单独重启/备份，生命周期不该和应用绑死
+  #
+  # 启动顺序（数据库先起，网络由它创建）：
+  #   docker compose -f docker-compose.kb.yml up -d
+  #   mvn -Pwith-frontend package
+  #   docker compose up -d --build
   deepseek-chat:
     build: .
     image: deepseek-chat:latest
     container_name: deepseek-chat
     restart: unless-stopped
-    depends_on:
-      - postgres
     ports:
-      - "8083:8080"
+      - "8083:8080"   # 原映射，保留
+      - "8080:8080"   # 与本地 mvn spring-boot:run 保持一致的入口
     environment:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      - RAG_DB_URL=jdbc:postgresql://postgres:5432/${RAG_DB_NAME:-ragdb}
+      # 同一 docker 网络内用容器名直连，5432 是容器内端口（宿主机侧是 5434）
+      - RAG_DB_URL=${RAG_DB_URL:-jdbc:postgresql://agentscope-kb-pg:5432/ragdb_kb}
       - RAG_DB_USERNAME=${RAG_DB_USERNAME:-postgres}
       - RAG_DB_PASSWORD=${RAG_DB_PASSWORD:-postgres}
+    extra_hosts:
+      # Linux 上访问宿主机 Ollama 需要显式声明，Windows/macOS 的 Docker Desktop 自带
+      - "host.docker.internal:host-gateway"
+    networks:
+      - agentscope-net
 
-volumes:
-  rag-postgres-data:
+networks:
+  # 由 docker-compose.kb.yml 创建，这里只接入，不重复创建
+  agentscope-net:
+    name: agentscope-net
+    external: true
